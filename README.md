@@ -46,9 +46,10 @@ A modern mobile commerce platform built with React Native and Expo that connects
 ## 📱 Screenshots
 
 <div align="center">
-  <img src="./app/assets/pngs/mangae_your_business.png" width="200" alt="Business Management"/>
-  <img src="./app/assets/pngs/serching_shops.png" width="200" alt="Shop Search"/>
-  <img src="./app/assets/pngs/undraw_online-profile_v9c1.png" width="200" alt="User Profile"/>
+  <img src="./onboarding.png" width="200" alt="Business Management"/>
+  <img src="./login.png" width="200" alt="Shop Search"/>
+  <img src="./register.png" width="200" alt="User Profile"/>
+    <img src="./serchshop.png" width="200" alt="User Profile"/>
 </div>
 
 ## 🏗️ Architecture

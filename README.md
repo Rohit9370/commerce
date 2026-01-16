@@ -1,50 +1,248 @@
-# Welcome to your Expo app 👋
+# Commerce App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A modern mobile commerce platform built with React Native and Expo that connects service providers with customers through an intuitive marketplace interface.
 
-## Get started
+## 🚀 Features
 
-1. Install dependencies
+### User Features
+- **Service Discovery**: Browse and search for local services on interactive maps
+- **Booking System**: Easy appointment scheduling with service providers
+- **User Profiles**: Personal account management with editable information
+- **Order Tracking**: Real-time status updates for bookings
+- **Location Services**: GPS-based service discovery and navigation
 
-   ```bash
-   npm install
-   ```
+### Service Provider Features
+- **Business Dashboard**: Manage shop information and services
+- **Booking Management**: Accept/reject customer appointments
+- **Profile Customization**: Update business details and operating hours
+- **Service Listings**: Create and manage service offerings
 
-2. Start the app
+### Admin Features
+- **User Management**: Oversee all accounts and permissions
+- **Content Moderation**: Manage listings and reviews
+- **Analytics Dashboard**: Track platform metrics and performance
 
-   ```bash
-   npx expo start
-   ```
+## 🛠️ Tech Stack
 
-In the output, you'll find options to open the app in a
+### Frontend
+- **React Native** - Mobile application framework
+- **Expo** - Development platform and toolchain
+- **React Navigation** - Routing and navigation
+- **Redux Toolkit** - State management
+- **AsyncStorage** - Local data persistence
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### Backend & Services
+- **Firebase Authentication** - User authentication and authorization
+- **Cloud Firestore** - NoSQL database for real-time data
+- **Firebase Cloud Storage** - Image and file storage
+- **Google Maps API** - Location services and mapping
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### UI & Styling
+- **React Native Elements** - Pre-built UI components
+- **Ionicons** - Icon library
+- **Custom Typography System** - Consistent text styling
+- **Responsive Design** - Adaptive layouts for all screen sizes
 
-## Get a fresh project
+## 📱 Screenshots
 
-When you're ready, run:
+<div align="center">
+  <img src="./app/assets/pngs/mangae_your_business.png" width="200" alt="Business Management"/>
+  <img src="./app/assets/pngs/serching_shops.png" width="200" alt="Shop Search"/>
+  <img src="./app/assets/pngs/undraw_online-profile_v9c1.png" width="200" alt="User Profile"/>
+</div>
 
-```bash
-npm run reset-project
+## 🏗️ Architecture
+
+### Project Structure
+```
+commerce/
+├── app/                    # Main application code
+│   ├── (admin)/           # Admin-specific screens
+│   ├── (tabs)/            # Tab navigation layouts
+│   ├── (user)/            # User-specific screens
+│   ├── auth/              # Authentication flows
+│   ├── bookings/          # Booking management
+│   ├── Components/        # Shared UI components
+│   ├── services/          # Service-related screens
+│   └── _layout.js         # Root layout configuration
+├── hooks/                 # Custom React hooks
+├── store/                 # Redux store configuration
+├── utils/                 # Utility functions
+└── constants/             # Application constants
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### State Management
+The app uses Redux Toolkit with AsyncStorage persistence for:
+- Authentication state
+- User profile data
+- Onboarding completion status
+- Notification preferences
 
-## Learn more
+### Navigation Flow
+```
+Onboarding → Authentication → Role-based Dashboard
+├── User: Home → Services → Bookings → Profile
+├── Admin/Shopkeeper: Dashboard → Services → Bookings → Profile
+└── Super Admin: Admin Panel → User Management
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+## 🔧 Getting Started
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### Prerequisites
+- Node.js (v16 or higher)
+- npm or yarn
+- Expo CLI
+- Android Studio / Xcode (for device simulation)
 
-## Join the community
+### Installation
 
-Join our community of developers creating universal apps.
+1. **Clone the repository**
+```bash
+git clone <repository-url>
+cd commerce
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+2. **Install dependencies**
+```bash
+npm install
+# or
+yarn install
+```
+
+3. **Start the development server**
+```bash
+npx expo start
+```
+
+4. **Run on device/emulator**
+- Scan QR code with Expo Go app
+- Or press `a` for Android emulator
+- Or press `i` for iOS simulator
+
+### Environment Variables
+Create a `.env` file in the root directory:
+```env
+# Firebase Configuration
+FIREBASE_API_KEY=your_api_key
+FIREBASE_AUTH_DOMAIN=your_auth_domain
+FIREBASE_PROJECT_ID=your_project_id
+FIREBASE_STORAGE_BUCKET=your_storage_bucket
+FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+FIREBASE_APP_ID=your_app_id
+
+# Google Maps API
+GOOGLE_MAPS_API_KEY=your_maps_api_key
+
+# Cloudinary (if used)
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+```
+
+## 🎯 Key Components
+
+### Authentication System
+- Email/password and Google OAuth support
+- Role-based access control (User/Admin/Shopkeeper/Super Admin)
+- Secure token management with automatic refresh
+
+### Booking Workflow
+1. User discovers services via map/search
+2. Selects service and chooses date/time
+3. Submits booking request
+4. Provider receives notification and can accept/decline
+5. User receives confirmation and booking details
+
+### Data Persistence
+- **Redux Store**: Application state management
+- **AsyncStorage**: Offline data caching
+- **Firebase Firestore**: Real-time database synchronization
+- **Cloud Storage**: Media file hosting
+
+## 📊 Performance Optimizations
+
+- **Lazy Loading**: Components loaded on demand
+- **Image Optimization**: Compressed assets and caching
+- **Code Splitting**: Bundle size reduction
+- **Memoization**: Prevent unnecessary re-renders
+- **Geolocation Caching**: Reduced API calls for location services
+
+## 🔒 Security Features
+
+- **Authentication Guards**: Protected routes based on user roles
+- **Data Validation**: Client and server-side input validation
+- **Secure Storage**: Encrypted sensitive data
+- **Rate Limiting**: API request throttling
+- **Session Management**: Automatic logout on inactivity
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+### Development Guidelines
+- Follow the existing code style and patterns
+- Write meaningful commit messages
+- Test thoroughly before submitting PRs
+- Update documentation when adding new features
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**Metro Bundler Errors**
+```bash
+# Clear cache and restart
+npx expo start -c
+```
+
+**Firebase Connection Issues**
+- Verify environment variables are correctly set
+- Check Firebase project configuration
+- Ensure proper API keys and permissions
+
+**Location Services Not Working**
+- Grant location permissions in device settings
+- Check Google Maps API key configuration
+- Verify network connectivity
+
+## 📱 Deployment
+
+### Building for Production
+
+**Android**
+```bash
+npx expo build:android
+```
+
+**iOS**
+```bash
+npx expo build:ios
+```
+
+### Publishing Updates
+```bash
+npx expo publish
+```
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- [React Native](https://reactnative.dev/) - Mobile framework
+- [Expo](https://expo.dev/) - Development platform
+- [Firebase](https://firebase.google.com/) - Backend services
+- [Google Maps](https://developers.google.com/maps) - Mapping services
+- All the open-source libraries and contributors that made this project possible
+
+## 📞 Support
+
+For support, email [your-email@example.com] or join our Slack channel.
+
+---
+<p align="center">Made with ❤️ using React Native and Expo</p>

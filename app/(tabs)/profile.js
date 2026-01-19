@@ -17,7 +17,6 @@ import { useDispatch, useSelector } from "react-redux";
 import { useUserRole } from "../../hooks/useUserRole";
 import { selectAuth } from "../../store";
 import { clearAuth } from "../../store/slices/authSlice";
-import { clearAuthData } from "../../utils/authStorage";
 import { db } from "../services/firebaseconfig";
 
 export default function ProfileScreen() {
@@ -57,10 +56,23 @@ export default function ProfileScreen() {
         onPress: async () => {
           try {
             setLoggingOut(true);
+            
+            // Clear Firebase auth
             const auth = getAuth();
             await signOut(auth);
-            await clearAuthData();
+            
+            // Clear all stored data (auth + onboarding + other app data)
+            await clearAllAuthData();
+            
+            // Clear Redux store - dispatch clear actions for all slices
             dispatch(clearAuth());
+            
+            // You can add more clear actions here for other slices if needed
+            // dispatch(clearServices());
+            // dispatch(clearBookings());
+            // dispatch(clearNotifications());
+            
+            // Navigate to login
             router.replace("/auth/login");
           } catch (error) {
             console.error("Logout error:", error);

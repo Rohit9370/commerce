@@ -10,7 +10,9 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useUserRole } from "../../hooks/useUserRole";
+import { useSelector } from "react-redux";
+import { colors } from "../../src/constants/theme";
+import TypographyComponents from "../Components/TypographyComponents";
 
 function Icon({ name, focused, color }) {
   return (
@@ -22,6 +24,8 @@ function Icon({ name, focused, color }) {
 
 function CustomTabBar({ state, descriptors, navigation }) {
   const insets = useSafeAreaInsets();
+  const { role } = useSelector((state) => state.auth);
+  
   // rotation anim per route key
   const spinsRef = useRef(
     state.routes.reduce((acc, r) => {
@@ -49,73 +53,84 @@ function CustomTabBar({ state, descriptors, navigation }) {
     }
   };
 
+  // Filter routes based on user role
+  const getVisibleRoutes = () => {
+    return state.routes.filter(route => {
+      const { options } = descriptors[route.key];
+      
+      // Hide screens with href: null
+      if (options?.href === null) return false;
+      
+      // Role-based filtering
+      if (role === 'user') {
+        // User sees: Home, Services, Bookings, Profile
+        return ['index', 'services', 'bookings', 'profile'].includes(route.name);
+      } else if (role === 'admin' || role === 'shopkeeper') {
+        // Shopkeeper/Admin sees: Dashboard, Services, Booking Requests, Profile
+        return ['_admin-home', '_admin-services', 'bookings', 'profile'].includes(route.name);
+      } else if (role === 'super-admin') {
+        // Super Admin sees: Admin Panel, Services, Bookings, Profile
+        return ['_super-admin-home', '_admin-services', 'bookings', 'profile'].includes(route.name);
+      }
+      
+      return false;
+    });
+  };
+
+  const visibleRoutes = getVisibleRoutes();
+
   return (
     <View
       pointerEvents="box-none"
       style={[styles.fabWrap, { paddingBottom: Math.max(insets.bottom, 12) }]}
     >
       <BlurView
-        intensity={30}
+        intensity={80}
         tint={Platform.OS === "ios" ? "systemMaterial" : "light"}
         style={styles.tabContainer}
       >
-        {state.routes.map((route, index) => {
+        {visibleRoutes.map((route, index) => {
           const { options } = descriptors[route.key];
-          // hide screens with href: null (expo-router)
-          if (options?.href === null) return null;
+          const routeIndex = state.routes.findIndex(r => r.key === route.key);
+          
           const label =
             options.tabBarLabel !== undefined
               ? options.tabBarLabel
               : options.title !== undefined
                 ? options.title
                 : route.name;
-          const isFocused = state.index === index;
-          const color = isFocused ? "#111827" : "#6b7280";
+                
+          const isFocused = state.index === routeIndex;
+          const color = isFocused ? colors.primary : colors.gray[500];
+          
           const spin =
             spinsRef.current[route.key]?.interpolate({
               inputRange: [0, 1],
               outputRange: ["0deg", "360deg"],
             }) || "0deg";
 
-          const iconName =
-            route.name === "index"
-              ? isFocused
-                ? "home"
-                : "home-outline"
-              : route.name === "services"
-                ? isFocused
-                  ? "briefcase"
-                  : "briefcase-outline"
-                : route.name === "notifications"
-                  ? isFocused
-                    ? "notifications"
-                    : "notifications-outline"
-                  : "ellipse";
+          const iconName = getIconName(route.name, isFocused);
 
           return (
             <TouchableOpacity
               key={route.key}
               accessibilityRole="button"
-              activeOpacity={0.9}
-              onPress={() => onPress(route, index, isFocused)}
+              accessibilityState={isFocused ? { selected: true } : {}}
+              accessibilityLabel={options.tabBarAccessibilityLabel}
+              testID={options.tabBarTestID}
+              onPress={() => onPress(route, routeIndex, isFocused)}
               style={styles.tabItem}
             >
-              <Animated.View
-                style={[
-                  styles.pill,
-                  isFocused && styles.pillActive,
-                  { transform: [{ rotate: spin }] },
-                ]}
-              >
-                <Ionicons
-                  name={iconName}
-                  size={isFocused ? 22 : 20}
-                  color={color}
-                />
+              <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                <Icon name={iconName} focused={isFocused} color={color} />
               </Animated.View>
-              {options.tabBarShowLabel !== false && (
-                <TextLabel focused={isFocused} text={label} />
-              )}
+              <TypographyComponents 
+                font="medium"
+                size="sm"
+                other={`${isFocused ? 'text-blue-600' : 'text-gray-500'} text-center`}
+              >
+                {getTabLabel(route.name)}
+              </TypographyComponents>
             </TouchableOpacity>
           );
         })}
@@ -124,227 +139,133 @@ function CustomTabBar({ state, descriptors, navigation }) {
   );
 }
 
-function TextLabel({ focused, text }) {
-  return (
-    <Animated.Text
-      numberOfLines={1}
-      style={[styles.label, { color: focused ? "#111827" : "#6b7280" }]}
-    >
-      {text}
-    </Animated.Text>
-  );
+function getIconName(routeName, focused) {
+  const iconMap = {
+    'index': focused ? 'home' : 'home-outline',
+    '_admin-home': focused ? 'business' : 'business-outline',
+    '_super-admin-home': focused ? 'shield-checkmark' : 'shield-checkmark-outline',
+    'services': focused ? 'grid' : 'grid-outline',
+    '_admin-services': focused ? 'construct' : 'construct-outline',
+    'bookings': focused ? 'calendar' : 'calendar-outline',
+    'profile': focused ? 'person' : 'person-outline',
+  };
+  return iconMap[routeName] || 'ellipse-outline';
+}
+
+function getTabLabel(routeName) {
+  const labelMap = {
+    'index': 'Home',
+    '_admin-home': 'Dashboard',
+    '_super-admin-home': 'Admin',
+    'services': 'Services',
+    '_admin-services': 'Services',
+    'bookings': 'Bookings', // For users: "My Bookings", For shopkeepers: "Booking Requests"
+    'profile': 'Profile',
+  };
+  return labelMap[routeName] || routeName;
 }
 
 export default function TabLayout() {
-  const { userRole } = useUserRole();
-
-  const isAdmin = userRole === "admin" || userRole === "shopkeeper";
-  const isSuperAdmin = userRole === "super-admin";
-  const isUser = userRole === "user" || !userRole;
-
-  const commonScreenOptions = {
-    headerShown: false,
-    tabBarShowLabel: true,
-    // For user role, hide native tab bar (we'll render a custom one inside user screens)
-    tabBarStyle: isUser
-      ? { display: "none" }
-      : {
-          position: "absolute",
-          backgroundColor: "transparent",
-          borderTopWidth: 0,
-          elevation: 0,
-        },
-    tabBar: isUser ? undefined : (props) => <CustomTabBar {...props} />,
-  };
-
-  // Define all possible screens
-  // User screens - Home, Services, Notifications
-  const userScreens = [
-    <Tabs.Screen
-      key="user-services"
-      name="services"
-      options={{
-        title: "Services",
-        tabBarIcon: ({ color, focused }) => (
-          <Icon
-            name={focused ? "briefcase" : "briefcase-outline"}
-            focused={focused}
-            color={color}
-          />
-        ),
-      }}
-    />,
-    <Tabs.Screen
-      key="user-notifications"
-      name="notifications"
-      options={{
-        title: "Notifications",
-        tabBarIcon: ({ color, focused }) => (
-          <Icon
-            name={focused ? "notifications" : "notifications-outline"}
-            focused={focused}
-            color={color}
-          />
-        ),
-      }}
-    />,
-  ];
-
-  // Shopkeeper/Admin screens - Dashboard, History, Profile
-  const adminScreens = [
-    <Tabs.Screen
-      key="admin-history"
-      name="bookings"
-      options={{
-        title: "History",
-        tabBarIcon: ({ color, focused }) => (
-          <Icon
-            name={focused ? "time" : "time-outline"}
-            focused={focused}
-            color={color}
-          />
-        ),
-      }}
-    />,
-    <Tabs.Screen
-      key="admin-profile"
-      name="profile"
-      options={{
-        title: "Profile",
-        tabBarIcon: ({ color, focused }) => (
-          <Icon
-            name={focused ? "person" : "person-outline"}
-            focused={focused}
-            color={color}
-          />
-        ),
-      }}
-    />,
-  ];
-
-  const superAdminScreens = [
-    <Tabs.Screen
-      key="super-services"
-      name="services"
-      options={{
-        title: "Services",
-        tabBarIcon: ({ color, focused }) => (
-          <Icon
-            name={focused ? "settings" : "settings-outline"}
-            focused={focused}
-            color={color}
-          />
-        ),
-      }}
-    />,
-    <Tabs.Screen
-      key="super-notifications"
-      name="notifications"
-      options={{
-        title: "Notifications",
-        tabBarIcon: ({ color, focused }) => (
-          <Icon
-            name={focused ? "notifications" : "notifications-outline"}
-            focused={focused}
-            color={color}
-          />
-        ),
-      }}
-    />,
-  ];
-
-  // Select screens based on role
-  const roleScreens = isUser
-    ? userScreens
-    : isAdmin
-      ? adminScreens
-      : superAdminScreens;
+  const { role } = useSelector((state) => state.auth);
 
   return (
-    <Tabs screenOptions={commonScreenOptions}>
-      {/* HOME */}
+    <Tabs
+      tabBar={(props) => <CustomTabBar {...props} />}
+      screenOptions={{
+        headerShown: false,
+      }}
+    >
+      {/* User Home Screen */}
       <Tabs.Screen
         name="index"
         options={{
-          title: isSuperAdmin ? "Admin" : isAdmin ? "Dashboard" : "Home",
-          tabBarIcon: ({ color, focused }) => (
-            <Icon
-              name={focused ? "home" : "home-outline"}
-              focused={focused}
-              color={color}
-            />
-          ),
+          href: role === 'user' ? '/index' : null,
+        }}
+      />
+      
+      {/* Admin/Shopkeeper Screens */}
+      <Tabs.Screen
+        name="_admin-home"
+        options={{
+          href: (role === 'admin' || role === 'shopkeeper') ? '/_admin-home' : null,
+        }}
+      />
+      
+      {/* Super Admin Screens */}
+      <Tabs.Screen
+        name="_super-admin-home"
+        options={{
+          href: role === 'super-admin' ? '/_super-admin-home' : null,
+        }}
+      />
+      
+      {/* Common Screens */}
+      <Tabs.Screen
+        name="services"
+        options={{
+          href: role === 'user' ? '/services' : null,
+        }}
+      />
+      
+      <Tabs.Screen
+        name="_admin-services"
+        options={{
+          href: (role === 'admin' || role === 'shopkeeper' || role === 'super-admin') ? '/_admin-services' : null,
+        }}
+      />
+      
+      <Tabs.Screen
+        name="bookings"
+        options={{
+          href: '/bookings',
+        }}
+      />
+      
+      <Tabs.Screen
+        name="profile"
+        options={{
+          href: '/profile',
         }}
       />
 
-      {/* Role-specific screens */}
-      {roleScreens}
-
-      {/* Hidden routes - only hide what current role doesn't use */}
-      <Tabs.Screen name="_admin-home" options={{ href: null }} />
-      <Tabs.Screen name="_admin-services" options={{ href: null }} />
-      <Tabs.Screen name="_super-admin-home" options={{ href: null }} />
-      {!isUser && <Tabs.Screen name="services" options={{ href: null }} />}
-      {!isUser && <Tabs.Screen name="notifications" options={{ href: null }} />}
-      {isUser && <Tabs.Screen name="bookings" options={{ href: null }} />}
-      {isUser && <Tabs.Screen name="profile" options={{ href: null }} />}
+      {/* Hidden screens */}
+      <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="home-user" options={{ href: null }} />
     </Tabs>
   );
 }
 
 const styles = StyleSheet.create({
-  iconContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    height: 42,
-    width: 42,
-  },
   fabWrap: {
     position: "absolute",
+    bottom: 0,
     left: 0,
     right: 0,
-    bottom: 0,
     alignItems: "center",
   },
   tabContainer: {
     flexDirection: "row",
-    gap: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 20,
-    overflow: "hidden",
-    backgroundColor: "rgba(255,255,255,0.6)",
+    backgroundColor: colors.white,
+    borderRadius: 24,
+    marginHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
   },
   tabItem: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 60,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
   },
-  pill: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.8)",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  pillActive: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#ffffff",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
-  label: {
-    marginTop: 4,
-    fontSize: 11,
-    fontWeight: "700",
+  iconContainer: {
+    marginBottom: 2,
   },
 });

@@ -6,6 +6,7 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     Dimensions,
     FlatList,
     StyleSheet,
@@ -306,7 +307,17 @@ export default function UserHomeScreen() {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.shopCard}
-              onPress={() => router.push(`/services/${item.id}`)}
+              onPress={() => {
+                console.log('Navigating to service with item:', item);
+                console.log('Item ID:', item.id);
+                console.log('Item ID type:', typeof item.id);
+                if (item.id && item.id !== 'undefined') {
+                  router.push(`/services/${item.id}`);
+                } else {
+                  console.error('Invalid item ID for navigation:', item.id);
+                  Alert.alert('Error', 'Unable to open service details. Please try again.');
+                }
+              }}
             >
               <Image
                 source={

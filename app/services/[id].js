@@ -1,15 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
@@ -18,10 +18,14 @@ import { selectAuth } from '../../store';
 import { createBooking } from '../../store/slices/bookingsSlice';
 import { db } from '../services/firebaseconfig';
 
-export default function ServiceDetailScreen({ id }) {
+export default function ServiceDetailScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams(); // Get all params
+  const { id } = params; // Get the id from route params
   
+  console.log('ServiceDetailScreen rendered with params:', params);
   console.log('ServiceDetailScreen rendered with id:', id);
+  console.log('Type of id:', typeof id);
   const dispatch = useDispatch();
   const { userData: user } = useUserRole();
   const { uid: userId } = useSelector(selectAuth);
@@ -31,19 +35,26 @@ export default function ServiceDetailScreen({ id }) {
   const [bookingLoading, setBookingLoading] = useState(false);
 
   useEffect(() => {
-    if (id) {
+    console.log('ServiceDetailScreen useEffect - id:', id);
+    console.log('ServiceDetailScreen useEffect - id type:', typeof id);
+    if (id && id !== 'undefined') {
       fetchShopDetails();
+    } else {
+      console.error('Invalid or missing service ID:', id);
+      setLoading(false);
     }
   }, [id]);
 
   const fetchShopDetails = async () => {
-    if (!id) {
-      console.error('Service ID is missing');
+    if (!id || id === 'undefined') {
+      console.error('Service ID is missing or invalid:', id);
       setLoading(false);
       return;
     }
     
     console.log('Fetching service details for ID:', id);
+    console.log('User role:', user?.role);
+    console.log('User ID:', userId);
     
     try {
       const docRef = doc(db, 'users', id);
@@ -57,6 +68,7 @@ export default function ServiceDetailScreen({ id }) {
         setShopData(data);
       } else {
         console.log('No document found for ID:', id);
+        Alert.alert('Error', 'Service not found');
       }
     } catch (error) {
       console.error('Error fetching shop details:', error);

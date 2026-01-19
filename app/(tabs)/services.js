@@ -1,22 +1,22 @@
 import { useEffect } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useDispatch, useSelector } from "react-redux";
 import { useUserRole } from "../../hooks/useUserRole";
 import { selectAuth } from "../../store";
 import {
-    fetchAllServices,
-    fetchShopServices,
-    selectAllServices,
-    selectServicesLoading,
-    selectShopServices,
+  fetchAllServices,
+  fetchShopServices,
+  selectAllServices,
+  selectServicesLoading,
+  selectShopServices,
 } from "../../store/slices/servicesSlice";
 import TypographyComponents from "../Components/TypographyComponents";
 import AdminServicesScreen from "./_admin-services";
@@ -46,6 +46,10 @@ export default function ServicesScreen() {
   }, [userRole, uid, dispatch]);
 
   if (userRole === "admin" || userRole === "super-admin") {
+    return <AdminServicesScreen />;
+  }
+
+  if (userRole === "shopkeeper" && !loading && displayServices.length === 0) {
     return <AdminServicesScreen />;
   }
 

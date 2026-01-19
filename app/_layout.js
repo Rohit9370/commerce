@@ -1,10 +1,11 @@
 import { Stack } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, StatusBar, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Provider, useDispatch, useSelector } from "react-redux";
 import { PersistGate } from "redux-persist/integration/react";
+import { colors } from "../src/constants/theme";
 import { persistor, store } from "../store";
 import { restoreSession } from "../store/slices/authSlice";
 
@@ -26,20 +27,31 @@ function RootInner() {
   // Wait for app to be ready
   if (!ready) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#0000ff" />
+      <View style={{ 
+        flex: 1, 
+        justifyContent: "center", 
+        alignItems: "center",
+        backgroundColor: colors.background 
+      }}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="onboarding" />
-      <Stack.Screen name="auth" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="search" />
-    </Stack>
+    <>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="onboarding" />
+        <Stack.Screen name="auth" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="bookings" />
+        <Stack.Screen name="chat" />
+        <Stack.Screen name="services" />
+        <Stack.Screen name="providers" />
+      </Stack>
+    </>
   );
 }
 

@@ -38,3 +38,6 @@ export const auth = (() => {
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const rtdb = getDatabase(app);
+
+// Default export for the app
+export default app;

@@ -1,500 +1,446 @@
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     FlatList,
     RefreshControl,
     StyleSheet,
-    Text,
     TouchableOpacity,
     View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useDispatch, useSelector } from "react-redux";
-import { useUserRole } from "../../hooks/useUserRole";
-import { selectAuth } from "../../store";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useDispatch, useSelector } from 'react-redux';
+
+import { Button, Card, Input, Typography } from '../../src/components/ui';
+import { colors, spacing } from '../../src/constants/theme';
 import {
-    cancelBooking,
-    confirmBooking,
     fetchShopkeeperBookings,
     fetchUserBookings,
     selectBookingsLoading,
     selectShopkeeperBookings,
     selectUserBookings,
-    updateBookingStatus,
-} from "../../store/slices/bookingsSlice";
+    updateBookingStatus
+} from '../../store/slices/bookingsSlice';
 
-export default function HistoryScreen() {
+const BookingsScreen = () => {
   const router = useRouter();
-  const { userRole } = useUserRole();
   const dispatch = useDispatch();
-  const { uid } = useSelector(selectAuth);
+  const { filter } = useLocalSearchParams();
   
-  // Different bookings based on user role
-  const shopkeeperBookings = useSelector(selectShopkeeperBookings);
+  const { uid, role } = useSelector((state) => state.auth);
   const userBookings = useSelector(selectUserBookings);
-  const bookingsLoading = useSelector(selectBookingsLoading);
+  const shopkeeperBookings = useSelector(selectShopkeeperBookings);
+  const loading = useSelector(selectBookingsLoading);
   
+  const [activeFilter, setActiveFilter] = useState(filter || 'all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("all"); // all, completed, rejected, pending, confirmed, cancelled
+
+  const isShopkeeper = role === 'admin' || role === 'shopkeeper' || role === 'super-admin';
+  const bookings = isShopkeeper ? shopkeeperBookings : userBookings;
 
   useEffect(() => {
     if (uid) {
-      if (userRole === "admin" || userRole === "shopkeeper") {
-        // Service providers fetch their own bookings (from customers)
-        dispatch(fetchShopkeeperBookings(uid));
-      } else {
-        // Regular users fetch their own bookings
-        dispatch(fetchUserBookings(uid));
-      }
+      fetchBookings();
     }
-  }, [uid, userRole, dispatch]);
+  }, [uid, role]);
+
+  useEffect(() => {
+    if (filter) {
+      setActiveFilter(filter);
+    }
+  }, [filter]);
+
+  const fetchBookings = () => {
+    if (isShopkeeper) {
+      dispatch(fetchShopkeeperBookings(uid));
+    } else {
+      dispatch(fetchUserBookings(uid));
+    }
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    if (uid) {
-      if (userRole === "admin" || userRole === "shopkeeper") {
-        await dispatch(fetchShopkeeperBookings(uid));
-      } else {
-        await dispatch(fetchUserBookings(uid));
-      }
-    }
+    fetchBookings();
     setRefreshing(false);
   };
 
-  // Get the correct bookings list based on role
-  const bookings = (userRole === "admin" || userRole === "shopkeeper") ? shopkeeperBookings : userBookings;
-
-  // Filter bookings based on status
-  const filteredBookings = bookings.filter((booking) => {
-    if (statusFilter === "all") {
-      return true; // Show all bookings
-    }
-    return booking.status === statusFilter;
-  });
-
-  const handleUpdateBookingStatus = async (bookingId, newStatus) => {
+  const handleBookingAction = async (bookingId, action) => {
     try {
-      let action;
-      switch(newStatus) {
-        case 'confirmed':
-          action = confirmBooking(bookingId);
-          break;
-        case 'cancelled':
-          action = cancelBooking(bookingId);
-          break;
-        default:
-          action = updateBookingStatus({ bookingId, status: newStatus });
-          break;
-      }
-      
-      await dispatch(action);
-      // Refresh bookings after status update
-      if (uid) {
-        if (userRole === "admin" || userRole === "shopkeeper") {
-          await dispatch(fetchShopkeeperBookings(uid));
-        } else {
-          await dispatch(fetchUserBookings(uid));
-        }
-      }
+      await dispatch(updateBookingStatus({ bookingId, status: action })).unwrap();
+      Alert.alert('Success', `Booking ${action} successfully`);
     } catch (error) {
-      Alert.alert("Error", `Failed to update booking status: ${error.message}`);
+      Alert.alert('Error', `Failed to ${action} booking`);
     }
   };
 
-  const renderBookingCard = ({ item }) => {
-    const statusColor =
-      item.status === "completed"
-        ? "#10b981"
-        : item.status === "rejected" || item.status === "cancelled"
-          ? "#ef4444"
-          : item.status === "pending"
-            ? "#f59e0b"
-            : item.status === "confirmed"
-              ? "#3b82f6"
-              : "#6b7280";
-    const statusLabel =
-      item.status.charAt(0).toUpperCase() + item.status.slice(1);
-
-    return (
-      <View style={styles.bookingCard}>
-        <View style={styles.cardHeader}>
-          <View style={styles.serviceInfo}>
-            <Text style={styles.serviceName}>{item.serviceName}</Text>
-            <Text style={styles.customerName}>{item.userName}</Text>
-          </View>
-          <View style={[styles.statusBadge, { backgroundColor: statusColor }]}> 
-            <Text style={styles.statusText}>{statusLabel}</Text>
-          </View>
-        </View>
-
-        <View style={styles.cardDivider} />
-
-        <View style={styles.cardFooter}>
-          <View style={styles.footerItem}>
-            <Ionicons name="calendar" size={14} color="#6b7280" />
-            <Text style={styles.footerText}>
-              {item.bookingDate
-                ? new Date(item.bookingDate).toLocaleDateString()
-                : "N/A"}
-            </Text>
-          </View>
-          <View style={styles.footerItem}>
-            <Ionicons name="time" size={14} color="#6b7280" />
-            <Text style={styles.footerText}>{item.bookingTime || "N/A"}</Text>
-          </View>
-          <View style={styles.footerItem}>
-            <Ionicons name="cash" size={14} color="#4f46e5" />
-            <Text style={styles.priceText}>₹{item.price || "0"}</Text>
-          </View>
-        </View>
-
-        {/* Action buttons for service providers (pending bookings) */}
-        {(userRole === "admin" || userRole === "shopkeeper") && item.status === "pending" && (
-          <View style={styles.actionButtonsContainer}>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.acceptButton]}
-              onPress={() => handleUpdateBookingStatus(item.id, "confirmed")}
-            >
-              <Text style={styles.actionButtonText}>Accept</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.rejectButton]}
-              onPress={() => handleUpdateBookingStatus(item.id, "rejected")}
-            >
-              <Text style={styles.actionButtonText}>Reject</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Action buttons for service providers (confirmed bookings) */}
-        {(userRole === "admin" || userRole === "shopkeeper") && item.status === "confirmed" && (
-          <View style={styles.actionButtonsContainer}>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.completeButton]}
-              onPress={() => handleUpdateBookingStatus(item.id, "completed")}
-            >
-              <Text style={styles.actionButtonText}>Mark Complete</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.cancelButton]}
-              onPress={() => handleUpdateBookingStatus(item.id, "cancelled")}
-            >
-              <Text style={styles.actionButtonText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
+  const handleCancelBooking = (bookingId) => {
+    Alert.alert(
+      'Cancel Booking',
+      'Are you sure you want to cancel this booking?',
+      [
+        { text: 'No', style: 'cancel' },
+        { 
+          text: 'Yes', 
+          style: 'destructive',
+          onPress: () => handleBookingAction(bookingId, 'cancelled')
+        },
+      ]
     );
   };
 
-  if (bookingsLoading && !refreshing) {
+  const getFilteredBookings = () => {
+    let filtered = [...bookings];
+
+    // Filter by status
+    if (activeFilter !== 'all') {
+      filtered = filtered.filter(booking => booking.status === activeFilter);
+    }
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(booking =>
+        booking.serviceName?.toLowerCase().includes(query) ||
+        booking.shopName?.toLowerCase().includes(query) ||
+        booking.userName?.toLowerCase().includes(query)
+      );
+    }
+
+    // Sort by date (newest first)
+    filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    return filtered;
+  };
+
+  const filteredBookings = getFilteredBookings();
+
+  const FilterButton = ({ title, value, count }) => (
+    <TouchableOpacity
+      style={[
+        styles.filterButton,
+        activeFilter === value && styles.activeFilterButton,
+      ]}
+      onPress={() => setActiveFilter(value)}
+    >
+      <Typography
+        variant="body2"
+        color={activeFilter === value ? "inverse" : "secondary"}
+        weight="medium"
+      >
+        {title} {count !== undefined && `(${count})`}
+      </Typography>
+    </TouchableOpacity>
+  );
+
+  const BookingCard = ({ booking }) => {
+    const getStatusColor = (status) => {
+      switch (status) {
+        case 'pending': return colors.warning;
+        case 'accepted': return colors.info;
+        case 'completed': return colors.success;
+        case 'cancelled': return colors.error;
+        case 'rejected': return colors.error;
+        default: return colors.gray[500];
+      }
+    };
+
+    const canChat = booking.status === 'accepted';
+    const canCancel = booking.status === 'pending' || booking.status === 'accepted';
+    const isPending = booking.status === 'pending';
+
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color="#4f46e5" />
-          <Text style={styles.loadingText}>Loading bookings...</Text>
+      <Card style={styles.bookingCard} onPress={() => router.push(`/bookings/${booking.id}`)}>
+        <View style={styles.bookingHeader}>
+          <View style={styles.bookingInfo}>
+            <Typography variant="h6" weight="semiBold" numberOfLines={1}>
+              {booking.serviceName}
+            </Typography>
+            <Typography variant="body2" color="secondary" numberOfLines={1}>
+              {isShopkeeper ? `Customer: ${booking.userName}` : `Shop: ${booking.shopName}`}
+            </Typography>
+            <View style={styles.bookingMeta}>
+              <View style={styles.dateTime}>
+                <Ionicons name="calendar-outline" size={14} color={colors.gray[500]} />
+                <Typography variant="caption" color="secondary">
+                  {booking.date}
+                </Typography>
+              </View>
+              <View style={styles.dateTime}>
+                <Ionicons name="time-outline" size={14} color={colors.gray[500]} />
+                <Typography variant="caption" color="secondary">
+                  {booking.time}
+                </Typography>
+              </View>
+            </View>
+          </View>
+          
+          <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(booking.status)}20` }]}>
+            <Typography 
+              variant="caption" 
+              weight="medium"
+              style={{ color: getStatusColor(booking.status) }}
+            >
+              {booking.status.toUpperCase()}
+            </Typography>
+          </View>
         </View>
-      </SafeAreaView>
+
+        {booking.price && (
+          <View style={styles.priceContainer}>
+            <Typography variant="h6" weight="bold" color="primary">
+              ₹{booking.price}
+            </Typography>
+          </View>
+        )}
+
+        {/* Actions */}
+        <View style={styles.bookingActions}>
+          {/* Shopkeeper Actions */}
+          {isShopkeeper && isPending && (
+            <>
+              <Button
+                title="Reject"
+                variant="outline"
+                size="small"
+                style={[styles.actionButton, { borderColor: colors.error }]}
+                textStyle={{ color: colors.error }}
+                onPress={() => handleBookingAction(booking.id, 'rejected')}
+              />
+              <Button
+                title="Accept"
+                size="small"
+                style={styles.actionButton}
+                onPress={() => handleBookingAction(booking.id, 'accepted')}
+              />
+            </>
+          )}
+
+          {isShopkeeper && booking.status === 'accepted' && (
+            <Button
+              title="Mark Complete"
+              variant="secondary"
+              size="small"
+              style={styles.actionButton}
+              onPress={() => handleBookingAction(booking.id, 'completed')}
+            />
+          )}
+
+          {/* Chat Button */}
+          {canChat && (
+            <Button
+              title="Chat"
+              variant="outline"
+              size="small"
+              style={styles.actionButton}
+              onPress={() => router.push(`/chat/${booking.id}`)}
+            />
+          )}
+
+          {/* User Actions */}
+          {!isShopkeeper && canCancel && (
+            <Button
+              title="Cancel"
+              variant="outline"
+              size="small"
+              style={[styles.actionButton, { borderColor: colors.error }]}
+              textStyle={{ color: colors.error }}
+              onPress={() => handleCancelBooking(booking.id)}
+            />
+          )}
+
+          {/* View Details */}
+          <Button
+            title="Details"
+            variant="ghost"
+            size="small"
+            style={styles.actionButton}
+            onPress={() => router.push(`/bookings/${booking.id}`)}
+          />
+        </View>
+      </Card>
     );
-  }
+  };
+
+  const EmptyState = () => (
+    <View style={styles.emptyContainer}>
+      <Ionicons name="calendar-outline" size={64} color={colors.gray[400]} />
+      <Typography variant="h6" color="secondary" style={{ marginTop: 16 }}>
+        No bookings found
+      </Typography>
+      <Typography variant="body2" color="tertiary" align="center" style={{ marginTop: 8 }}>
+        {isShopkeeper 
+          ? "Bookings from customers will appear here"
+          : "Your service bookings will appear here"
+        }
+      </Typography>
+      {!isShopkeeper && (
+        <Button
+          title="Browse Services"
+          style={{ marginTop: 24 }}
+          onPress={() => router.push('/(tabs)/home')}
+        />
+      )}
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Bookings</Text>
-        <Text style={styles.headerSubtitle}>Manage your bookings</Text>
-      </View>
-
-      {/* Filter Tabs */}
-      <View style={styles.filterRow}>
-        <TouchableOpacity
-          style={[
-            styles.filterBtn,
-            statusFilter === "all" && styles.filterBtnActive,
-          ]}
-          onPress={() => setStatusFilter("all")}
-        >
-          <Text
-            style={[
-              styles.filterBtnText,
-              statusFilter === "all" && styles.filterBtnTextActive,
-            ]}
-          >
-            All
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.filterBtn,
-            statusFilter === "pending" && styles.filterBtnActive,
-          ]}
-          onPress={() => setStatusFilter("pending")}
-        >
-          <Text
-            style={[
-              styles.filterBtnText,
-              statusFilter === "pending" && styles.filterBtnTextActive,
-            ]}
-          >
-            Pending
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.filterBtn,
-            statusFilter === "confirmed" && styles.filterBtnActive,
-          ]}
-          onPress={() => setStatusFilter("confirmed")}
-        >
-          <Text
-            style={[
-              styles.filterBtnText,
-              statusFilter === "confirmed" && styles.filterBtnTextActive,
-            ]}
-          >
-            Confirmed
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.filterBtn,
-            statusFilter === "completed" && styles.filterBtnActive,
-          ]}
-          onPress={() => setStatusFilter("completed")}
-        >
-          <Text
-            style={[
-              styles.filterBtnText,
-              statusFilter === "completed" && styles.filterBtnTextActive,
-            ]}
-          >
-            Completed
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.filterBtn,
-            statusFilter === "cancelled" && styles.filterBtnActive,
-          ]}
-          onPress={() => setStatusFilter("cancelled")}
-        >
-          <Text
-            style={[
-              styles.filterBtnText,
-              statusFilter === "cancelled" && styles.filterBtnTextActive,
-            ]}
-          >
-            Cancelled
-          </Text>
+        <Typography variant="h4" weight="bold">
+          {isShopkeeper ? 'Customer Bookings' : 'My Bookings'}
+        </Typography>
+        <TouchableOpacity onPress={onRefresh}>
+          <Ionicons name="refresh-outline" size={24} color={colors.gray[600]} />
         </TouchableOpacity>
       </View>
 
-      {filteredBookings.length > 0 ? (
+      {/* Search */}
+      <View style={styles.searchContainer}>
+        <Input
+          placeholder="Search bookings..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          leftIcon="search-outline"
+          style={styles.searchInput}
+        />
+      </View>
+
+      {/* Filters */}
+      <View style={styles.filtersContainer}>
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={[
+            { title: 'All', value: 'all', count: bookings.length },
+            { title: 'Pending', value: 'pending', count: bookings.filter(b => b.status === 'pending').length },
+            { title: 'Accepted', value: 'accepted', count: bookings.filter(b => b.status === 'accepted').length },
+            { title: 'Completed', value: 'completed', count: bookings.filter(b => b.status === 'completed').length },
+            { title: 'Cancelled', value: 'cancelled', count: bookings.filter(b => b.status === 'cancelled').length },
+          ]}
+          renderItem={({ item }) => (
+            <FilterButton title={item.title} value={item.value} count={item.count} />
+          )}
+          keyExtractor={(item) => item.value}
+          contentContainerStyle={styles.filtersContent}
+        />
+      </View>
+
+      {/* Bookings List */}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : (
         <FlatList
           data={filteredBookings}
-          renderItem={renderBookingCard}
+          renderItem={({ item }) => <BookingCard booking={item} />}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
+          ListEmptyComponent={EmptyState}
           showsVerticalScrollIndicator={false}
         />
-      ) : (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="document-text-outline" size={48} color="#d1d5db" />
-          <Text style={styles.emptyText}>No bookings found</Text>
-          <Text style={styles.emptySubtext}>
-            {statusFilter === "all" 
-              ? (userRole === "admin" || userRole === "shopkeeper" ? "Customer bookings will appear here" : "Your bookings will appear here")
-              : `No ${statusFilter} bookings`
-            }
-          </Text>
-        </View>
       )}
     </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: colors.background,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1e293b',
+  searchContainer: {
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
   },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#64748b',
-    marginTop: 4,
+  searchInput: {
+    marginBottom: 0,
   },
-  centerContent: {
+  filtersContainer: {
+    marginBottom: spacing.md,
+  },
+  filtersContent: {
+    paddingHorizontal: spacing.md,
+  },
+  filterButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: colors.gray[100],
+    marginRight: 8,
+  },
+  activeFilterButton: {
+    backgroundColor: colors.primary,
+  },
+  loadingContainer: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: "#6b7280",
-  },
-  filterRow: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    gap: 8,
-  },
-  filterBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    alignItems: "center",
-  },
-  filterBtnActive: {
-    backgroundColor: "#4f46e5",
-    borderColor: "#4f46e5",
-  },
-  filterBtnText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#6b7280",
-  },
-  filterBtnTextActive: {
-    color: "#ffffff",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   listContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.md,
+    paddingBottom: 100,
   },
   bookingCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    marginBottom: spacing.sm,
   },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
+  bookingHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 12,
   },
-  serviceInfo: {
+  bookingInfo: {
     flex: 1,
     marginRight: 12,
   },
-  serviceName: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1e293b",
-    marginBottom: 4,
+  bookingMeta: {
+    flexDirection: 'row',
+    marginTop: 4,
   },
-  customerName: {
-    fontSize: 14,
-    color: "#64748b",
+  dateTime: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
   },
   statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#ffffff",
-  },
-  cardDivider: {
-    height: 1,
-    backgroundColor: "#e2e8f0",
-    marginVertical: 12,
-  },
-  cardFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  priceContainer: {
     marginBottom: 12,
   },
-  footerItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  footerText: {
-    fontSize: 13,
-    color: "#6b7280",
-    fontWeight: "500",
-  },
-  priceText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#4f46e5",
-  },
-  actionButtonsContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 12,
-    marginTop: 12,
+  bookingActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    flexWrap: 'wrap',
   },
   actionButton: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  acceptButton: {
-    backgroundColor: "#dcfce7",
-  },
-  rejectButton: {
-    backgroundColor: "#fee2e2",
-  },
-  completeButton: {
-    backgroundColor: "#dbeafe",
-  },
-  cancelButton: {
-    backgroundColor: "#fef3c7",
-  },
-  actionButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1e293b",
+    marginLeft: 8,
+    marginTop: 4,
+    minWidth: 70,
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingTop: 60,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1e293b",
-    marginTop: 16,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: "#64748b",
-    marginTop: 8,
-    textAlign: "center",
-    paddingHorizontal: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
   },
 });
+
+export default BookingsScreen;

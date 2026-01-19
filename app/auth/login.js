@@ -6,19 +6,20 @@ import { GoogleAuthProvider, signInWithCredential, signInWithEmailAndPassword } 
 import { doc, getDoc } from 'firebase/firestore';
 import { useState } from 'react';
 import {
-  ActivityIndicator,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { useDispatch } from 'react-redux';
-import { setAuth } from '../../store/slices/authSlice';
+import { setAuthFailure, setAuthStart, setAuthSuccess } from '../../store/slices/authSlice';
+import { saveAuthData } from '../../utils/authStorage';
 import TypographyComponents from '../Components/TypographyComponents';
 import { auth, db } from '../services/firebaseconfig';
 
@@ -60,13 +61,22 @@ export default function LoginScreen() {
         userData = data;
       }
       
-      // Dispatch auth state to Redux
-      dispatch(setAuth({
+      // Prepare auth data
+      const authData = {
         uid: userCredential.user.uid,
         email: userCredential.user.email,
         role: effectiveRole,
         userData: userData
-      }));
+      };
+      
+      // Save to AsyncStorage and Redux
+      dispatch(setAuthStart());
+      const saveSuccess = await saveAuthData(authData);
+      if (saveSuccess) {
+        dispatch(setAuthSuccess(authData));
+      } else {
+        dispatch(setAuthFailure('Failed to save auth data'));  
+      }
 
       // Map 'service provider' selection to our roles (admin/shopkeeper)
       const isProviderRole = (r) => r === 'admin' || r === 'shopkeeper';
@@ -130,13 +140,22 @@ export default function LoginScreen() {
           userData = data;
         }
         
-        // Dispatch auth state to Redux
-        dispatch(setAuth({
+        // Prepare auth data
+        const authData = {
           uid: userCredential.user.uid,
           email: userCredential.user.email,
           role: effectiveRole,
           userData: userData
-        }));
+        };
+        
+        // Save to AsyncStorage and Redux
+        dispatch(setAuthStart());
+        const saveSuccess = await saveAuthData(authData);
+        if (saveSuccess) {
+          dispatch(setAuthSuccess(authData));
+        } else {
+          dispatch(setAuthFailure('Failed to save auth data'));  
+        }
         
         router.replace('/(tabs)/');
       }

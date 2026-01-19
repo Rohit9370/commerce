@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
-import { useSelector } from 'react-redux';
-import { selectAuth } from '../store';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../app/services/firebaseconfig';
-import { useDispatch } from 'react-redux';
-import { setAuth, clearAuth } from '../store/slices/authSlice';
 import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { auth, db } from '../app/services/firebaseconfig';
+import { selectAuth } from '../store';
+import { clearAuth, setAuth } from '../store/slices/authSlice';
+import { convertTimestamps } from '../utils/firestoreConverter';
 
 export function useUserRole() {
   const [userRole, setUserRole] = useState(null);
@@ -33,7 +33,8 @@ export function useUserRole() {
         try {
           const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
           if (userDoc.exists()) {
-            const data = userDoc.data();
+            const rawData = userDoc.data();
+            const data = convertTimestamps(rawData);
             setUserData(data);
             setUserRole(data.role || 'user'); // Default to 'user' if no role
             dispatch(setAuth({ uid: currentUser.uid, email: currentUser.email, role: data.role || 'user', userData: data }));

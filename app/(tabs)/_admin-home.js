@@ -1,32 +1,55 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import TypographyComponents from '../Components/TypographyComponents';
-import { auth, db } from '../services/firebaseconfig';
+import { useSelector } from 'react-redux';
+import { useUserRole } from '../../hooks/useUserRole';
+import { selectAuth } from '../../store';
+import { db } from '../services/firebaseconfig';
 
 export default function AdminHomeScreen({ userData }) {
   const router = useRouter();
-  const [shopData, setShopData] = useState(userData);
+  const { userData: authUserData } = useUserRole();
+  const { uid } = useSelector(selectAuth);
+  const [shopData, setShopData] = useState(userData || authUserData);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ totalBookings: 0, activeServices: 0, reviews: 0 });
 
   useEffect(() => {
     const fetchShopData = async () => {
-      if (auth.currentUser) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+      try {
+        if (uid) {
+          const userDoc = await getDoc(doc(db, 'users', uid));
           if (userDoc.exists()) {
             setShopData(userDoc.data());
+            // Fetch stats
+            fetchStats(userDoc.data());
           }
-        } catch (error) {
-          console.error('Error fetching shop data:', error);
         }
+      } catch (error) {
+        console.error('Error fetching shop data:', error);
       }
       setLoading(false);
     };
+    
+    const fetchStats = async (shopInfo) => {
+      try {
+        // Simulate fetching booking statistics
+        // In a real app, this would query the bookings collection
+        setStats({
+          totalBookings: Math.floor(Math.random() * 100),
+          activeServices: shopInfo?.services?.length || 0,
+          reviews: Math.floor(Math.random() * 50)
+        });
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+      }
+    };
+    
     fetchShopData();
-  }, []);
+  }, [uid]);
 
   if (loading) {
     return (
@@ -41,111 +64,117 @@ export default function AdminHomeScreen({ userData }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.contentContainer}>
-        {/* Welcome Section */}
-        <View style={styles.welcomeSection}>
-          <TypographyComponents size="2xl" font="bold" other="text-gray-800">
-            Dashboard
-          </TypographyComponents>
-          <TypographyComponents size="md" font="reg" other="text-gray-600 mt-1">
-            Manage your shop
-          </TypographyComponents>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Header with Welcome */}
+        <View style={styles.headerContainer}>
+          <View style={styles.headerContent}>
+            <Text style={styles.welcomeText}>Welcome back,</Text>
+            <Text style={styles.shopName}>{shopData?.shopName || shopData?.fullName || 'Service Provider'}</Text>
+          </View>
+          <View style={styles.avatarContainer}>
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarText}>{(shopData?.shopName || shopData?.fullName || 'SP')[0]}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Stats Cards */}
+        <View style={styles.statsSection}>
+          <TouchableOpacity style={styles.statCard} onPress={() => router.push('/(tabs)/bookings')}>
+            <View style={styles.statIconContainer}>
+              <Ionicons name="calendar" size={24} color="#4f46e5" />
+            </View>
+            <View style={styles.statContent}>
+              <Text style={styles.statValue}>{stats.totalBookings}</Text>
+              <Text style={styles.statLabel}>Total Bookings</Text>
+            </View>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.statCard} onPress={() => router.push('/(tabs)/services')}>
+            <View style={styles.statIconContainer}>
+              <Ionicons name="build" size={24} color="#10b981" />
+            </View>
+            <View style={styles.statContent}>
+              <Text style={styles.statValue}>{stats.activeServices}</Text>
+              <Text style={styles.statLabel}>Active Services</Text>
+            </View>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.statCard}>
+            <View style={styles.statIconContainer}>
+              <Ionicons name="star" size={24} color="#f59e0b" />
+            </View>
+            <View style={styles.statContent}>
+              <Text style={styles.statValue}>{stats.reviews}</Text>
+              <Text style={styles.statLabel}>Reviews</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Shop Info Card */}
-        {shopData && (
-          <View style={styles.shopCard}>
-            <View style={styles.shopHeader}>
-              <View style={styles.shopIconContainer}>
-                <Text style={styles.shopIcon}>🏪</Text>
-              </View>
-              <View style={styles.shopInfo}>
-                <TypographyComponents size="xl" font="bold" other="text-gray-800">
-                  {shopData.shopName || 'My Shop'}
-                </TypographyComponents>
-                <TypographyComponents size="sm" font="reg" other="text-gray-600">
-                  {shopData.ownerName || 'Owner'}
-                </TypographyComponents>
-              </View>
-            </View>
-            
-            {shopData.location?.address && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>📍 Address:</Text>
-                <Text style={styles.infoValue}>{shopData.location.address}</Text>
-              </View>
-            )}
-            
-            {shopData.category && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>🏷️ Category:</Text>
-                <Text style={styles.infoValue}>{shopData.category}</Text>
-              </View>
-            )}
-            
-            {shopData.openingTime && shopData.closingTime && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>🕐 Hours:</Text>
-                <Text style={styles.infoValue}>
-                  {shopData.openingTime} - {shopData.closingTime}
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Quick Actions */}
-        <View style={styles.sectionContainer}>
-          <TypographyComponents size="lg" font="medium" other="text-gray-800 mb-4">
-            Quick Actions
-          </TypographyComponents>
+        <View style={styles.infoCard}>
+          <Text style={styles.infoCardTitle}>Shop Information</Text>
           
-          <View style={styles.actionsContainer}>
-            <TouchableOpacity 
-              style={styles.actionCard}
-              onPress={() => router.push('/(tabs)/services')}
-            >
-              <Text style={styles.actionIcon}>🔧</Text>
-              <TypographyComponents size="md" font="medium" other="text-gray-800 mt-2">
-                Manage Services
-              </TypographyComponents>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.actionCard}
-              onPress={() => router.push('/(tabs)/bookings')}
-            >
-              <Text style={styles.actionIcon}>📅</Text>
-              <TypographyComponents size="md" font="medium" other="text-gray-800 mt-2">
-                View Bookings
-              </TypographyComponents>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.actionCard}
-              onPress={() => router.push('/(tabs)/profile')}
-            >
-              <Text style={styles.actionIcon}>⚙️</Text>
-              <TypographyComponents size="md" font="medium" other="text-gray-800 mt-2">
-                Edit Profile
-              </TypographyComponents>
-            </TouchableOpacity>
+          <View style={styles.infoRow}>
+            <Ionicons name="storefront-outline" size={20} color="#6b7280" />
+            <Text style={styles.infoValue}>{shopData?.shopName || 'N/A'}</Text>
+          </View>
+          
+          <View style={styles.infoRow}>
+            <Ionicons name="person-outline" size={20} color="#6b7280" />
+            <Text style={styles.infoValue}>{shopData?.ownerName || shopData?.fullName || 'N/A'}</Text>
+          </View>
+          
+          <View style={styles.infoRow}>
+            <Ionicons name="call-outline" size={20} color="#6b7280" />
+            <Text style={styles.infoValue}>{shopData?.shopPhone || shopData?.phone || 'N/A'}</Text>
+          </View>
+          
+          <View style={styles.infoRow}>
+            <Ionicons name="location-outline" size={20} color="#6b7280" />
+            <Text style={styles.infoValue}>{shopData?.address || 'N/A'}</Text>
+          </View>
+          
+          <View style={styles.infoRow}>
+            <Ionicons name="briefcase-outline" size={20} color="#6b7280" />
+            <Text style={styles.infoValue}>{shopData?.category || 'N/A'}</Text>
           </View>
         </View>
 
-        {/* Stats Section */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Total Bookings</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Active Services</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Reviews</Text>
+        {/* Quick Actions */}
+        <View style={styles.actionsSection}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          
+          <View style={styles.actionsGrid}>
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => router.push('/(tabs)/services')}
+            >
+              <View style={styles.actionIconContainer}>
+                <Ionicons name="build" size={24} color="#ffffff" />
+              </View>
+              <Text style={styles.actionText}>Manage Services</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => router.push('/(tabs)/bookings')}
+            >
+              <View style={styles.actionIconContainer}>
+                <Ionicons name="calendar" size={24} color="#ffffff" />
+              </View>
+              <Text style={styles.actionText}>View Bookings</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => router.push('/(tabs)/profile')}
+            >
+              <View style={styles.actionIconContainer}>
+                <Ionicons name="settings" size={24} color="#ffffff" />
+              </View>
+              <Text style={styles.actionText}>Edit Profile</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
@@ -156,10 +185,7 @@ export default function AdminHomeScreen({ userData }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
-  },
-  contentContainer: {
-    padding: 16,
+    backgroundColor: '#f8fafc',
   },
   loadingContainer: {
     flex: 1,
@@ -171,105 +197,161 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6b7280',
   },
-  welcomeSection: {
-    marginBottom: 24,
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
   },
-  shopCard: {
-    backgroundColor: 'white',
+  headerContent: {
+    flex: 1,
+  },
+  welcomeText: {
+    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 4,
+  },
+  shopName: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  avatarContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#e0e7ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#e0e7ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#4f46e5',
+  },
+  statsSection: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    gap: 12,
+    marginBottom: 16,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: '#ffffff',
     borderRadius: 12,
-    padding: 20,
-    marginBottom: 24,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  statIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statContent: {},
+  statValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 4,
+  },
+  infoCard: {
+    backgroundColor: '#ffffff',
+    marginHorizontal: 20,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  infoCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 16,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  infoValue: {
+    flex: 1,
+    fontSize: 14,
+    color: '#334155',
+  },
+  actionsSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 12,
+  },
+  actionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  actionButton: {
+    flex: 1,
+    backgroundColor: '#4f46e5',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    minWidth: '48%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
-  shopHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  shopIconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#EEF2FF',
+  actionIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginBottom: 8,
   },
-  shopIcon: {
-    fontSize: 30,
-  },
-  shopInfo: {
-    flex: 1,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    marginTop: 12,
-    flexWrap: 'wrap',
-  },
-  infoLabel: {
+  actionText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6b7280',
-    marginRight: 8,
-  },
-  infoValue: {
-    fontSize: 14,
-    color: '#1f2937',
-    flex: 1,
-  },
-  sectionContainer: {
-    marginBottom: 24,
-  },
-  actionsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  actionCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
-    width: '48%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  actionIcon: {
-    fontSize: 32,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  statCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    flex: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#6366f1',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 4,
+    color: '#ffffff',
     textAlign: 'center',
   },
 });

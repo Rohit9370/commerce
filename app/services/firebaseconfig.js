@@ -1,5 +1,5 @@
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
-import { initializeApp } from "firebase/app";
+import { getApp, getApps, initializeApp } from "firebase/app";
 import { getReactNativePersistence, initializeAuth } from "firebase/auth";
 import { getDatabase } from "firebase/database";
 import { getFirestore } from "firebase/firestore";
@@ -15,12 +15,25 @@ const firebaseConfig = {
   databaseURL: "https://serviceprovider-33f80-default-rtdb.firebaseio.com/"
 };
 
-const app = initializeApp(firebaseConfig);
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 // Initialize auth with React Native persistence
-export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(ReactNativeAsyncStorage)
-});
+export const auth = (() => {
+  try {
+    return initializeAuth(app, {
+      persistence: getReactNativePersistence(ReactNativeAsyncStorage),
+    });
+  } catch (e) {
+    // Hot reload / multi-import can attempt to init twice; reuse existing auth.
+    // eslint-disable-next-line no-console
+    console.log("Firebase auth already initialized");
+    // Lazy import to avoid circulars; getAuth exists in firebase/auth.
+    // We keep it inline to ensure we always return a valid instance.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { getAuth } = require("firebase/auth");
+    return getAuth(app);
+  }
+})();
 
 export const db = getFirestore(app);
 export const storage = getStorage(app);

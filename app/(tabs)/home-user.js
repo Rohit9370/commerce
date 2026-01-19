@@ -4,15 +4,15 @@ import { useRouter } from 'expo-router';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  FlatList,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    FlatList,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -39,8 +39,14 @@ export default function UserHomeScreen() {
         id: doc.id,
         ...doc.data(),
       }));
-      setShops(shopsData);
-      setFilteredShops(shopsData);
+      
+      // Filter shops with valid coordinates
+      const shopsWithCoords = shopsData.filter(shop => 
+        shop.location && shop.location.latitude && shop.location.longitude
+      );
+      
+      setShops(shopsWithCoords);
+      setFilteredShops(shopsWithCoords);
     } catch (error) {
       console.error('Error fetching shops:', error);
     } finally {
@@ -85,7 +91,7 @@ export default function UserHomeScreen() {
             </Text>
             <Text style={styles.subText}>Find best services near you</Text>
           </View>
-          <TouchableOpacity style={styles.profileIcon}>
+          <TouchableOpacity style={styles.profileIcon} onPress={() => router.push('/(tabs)/notifications')}>
             <Ionicons name="notifications-outline" size={24} color="#1F2937" />
           </TouchableOpacity>
         </View>
@@ -109,28 +115,30 @@ export default function UserHomeScreen() {
         data={filteredShops}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={
-          <MapView
-            style={styles.map}
-            initialRegion={{
-              latitude: 28.6139,
-              longitude: 77.2090,
-              latitudeDelta: 0.05,
-              longitudeDelta: 0.05,
-            }}
-          >
-            {filteredShops.map((shop) => (
-              <Marker
-                key={shop.id}
-                coordinate={{
-                  latitude: shop.latitude || 28.6139,
-                  longitude: shop.longitude || 77.2090,
-                }}
-                title={shop.shopName}
-                description={shop.address}
-                onPress={() => router.push(`/services/${shop.id}`)}
-              />
-            ))}
-          </MapView>
+          <View style={styles.mapContainer}>
+            <MapView
+              style={styles.map}
+              initialRegion={{
+                latitude: filteredShops.length > 0 ? filteredShops[0].location.latitude : 28.6139,
+                longitude: filteredShops.length > 0 ? filteredShops[0].location.longitude : 77.2090,
+                latitudeDelta: 0.0922,
+                longitudeDelta: 0.0421,
+              }}
+            >
+              {filteredShops.map((shop) => (
+                <Marker
+                  key={shop.id}
+                  coordinate={{
+                    latitude: shop.location.latitude,
+                    longitude: shop.location.longitude,
+                  }}
+                  title={shop.shopName}
+                  description={shop.category}
+                  onPress={() => router.push(`/services/${shop.id}`)}
+                />
+              ))}
+            </MapView>
+          </View>
         }
         renderItem={({ item }) => (
           <TouchableOpacity
@@ -142,14 +150,20 @@ export default function UserHomeScreen() {
               pagingEnabled
               showsHorizontalScrollIndicator={false}
             >
-              {item.shopImages?.map((img, i) => (
-                <Image
-                  key={i}
-                  source={{ uri: img }}
-                  style={styles.shopImg}
-                  contentFit="cover"
-                />
-              ))}
+              {item.shopImages?.length > 0 ? (
+                item.shopImages.map((img, i) => (
+                  <Image
+                    key={i}
+                    source={{ uri: img }}
+                    style={styles.shopImg}
+                    contentFit="cover"
+                  />
+                ))
+              ) : (
+                <View style={styles.placeholderImage}>
+                  <Ionicons name="image-outline" size={48} color="#cbd5e1" />
+                </View>
+              )}
             </ScrollView>
             <View style={styles.infoContainer}>
               <View style={styles.rowBetween}>
@@ -214,27 +228,23 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, paddingHorizontal: 10, fontWeight: '500' },
 
   mapContainer: {
-    height: 160,
-    margin: 20,
-    borderRadius: 25,
-    backgroundColor: '#E5E7EB',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    borderColor: '#9CA3AF',
-  },
-  mapPlaceholderText: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '600',
-    marginTop: 5,
-  },
-  map: {
     height: 200,
-    margin: 20,
+    marginHorizontal: 20,
+    marginTop: 15,
     borderRadius: 25,
     overflow: 'hidden',
+    backgroundColor: '#E5E7EB',
+  },
+  map: {
+    flex: 1,
+    borderRadius: 25,
+  },
+  placeholderImage: {
+    width: 400,
+    height: 180,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   card: {

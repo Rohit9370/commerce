@@ -1,15 +1,25 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Dimensions, Image, StyleSheet, TouchableOpacity, View } from 'react-native';
 import Swiper from 'react-native-swiper';
 import { useDispatch } from 'react-redux';
-import { setOnboarded } from '../store/slices/onboardingSlice';
+import { setOnboardingComplete, setOnboardingStart } from '../store/slices/onboardingSlice';
 import { saveOnboardingStatus } from '../utils/authStorage';
 import TypographyComponents from './Components/TypographyComponents';
 
 
 const { width, height } = Dimensions.get('window');
+
+// Responsive scaling function
+const scale = (size) => {
+  const guidelineBaseWidth = 375; // iPhone X width
+  return (width / guidelineBaseWidth) * size;
+};
+
+const scaleVertical = (size) => {
+  const guidelineBaseHeight = 812; // iPhone X height
+  return (height / guidelineBaseHeight) * size;
+};
 
 const OnboardingScreen = ({ onboardingComplete }) => {
   const router = useRouter();
@@ -20,8 +30,8 @@ const OnboardingScreen = ({ onboardingComplete }) => {
   const handleSkip = async () => {
     try {
       // Save onboarding status to both AsyncStorage and Redux
-      await AsyncStorage.setItem('onboardingCompleted', 'true');
-      dispatch(setOnboarded(true));
+      dispatch(setOnboardingStart());
+      dispatch(setOnboardingComplete());
       await saveOnboardingStatus(true);
       
       if (onboardingComplete) {
@@ -39,8 +49,8 @@ const OnboardingScreen = ({ onboardingComplete }) => {
     } else {
       try {
         // Save onboarding status to both AsyncStorage and Redux
-        await AsyncStorage.setItem('onboardingCompleted', 'true');
-        dispatch(setOnboarded(true));
+        dispatch(setOnboardingStart());
+        dispatch(setOnboardingComplete());
         await saveOnboardingStatus(true);
         
         if (onboardingComplete) {
@@ -75,7 +85,7 @@ const OnboardingScreen = ({ onboardingComplete }) => {
         onIndexChanged={(idx) => setIndex(idx)}
         activeDotColor="#000002"
         dotColor="#afb8d7"
-        paginationStyle={{ bottom: 100 }}  
+        paginationStyle={{ bottom: scaleVertical(100) }}  
       >
 
         <View style={styles.slideContainer}>
@@ -174,11 +184,11 @@ const styles = StyleSheet.create({
   },
   skipButton: {
     position: 'absolute',
-    top: 16,
-    right: 20,
+    top: scale(16),
+    right: scale(20),
     zIndex: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: scale(8),
+    paddingHorizontal: scale(12),
   },
   slideContainer: {
     flex: 1,
@@ -189,28 +199,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   image: {
-    height: '100%',
-    width: '80%',
+    height: height > 700 ? '80%' : '70%',
+    width: width > 400 ? '60%' : '80%',
   },
   textContainer: {
     flex: 0.4,
-    paddingHorizontal: 32, 
+    paddingHorizontal: scale(32), 
     alignItems: 'center',
   },
   buttonContainer: {
     justifyContent: 'center',
     alignContent: 'center',
     position: 'absolute',
-    bottom: 32, 
+    bottom: scaleVertical(32), 
     width: '100%',
   },
   button: {
     backgroundColor: '#6366f1', 
-    width: '80%',
-    paddingVertical: 16, 
-    paddingHorizontal: 16,
-    borderRadius: 16, 
+    width: width > 400 ? '70%' : '80%',
+    paddingVertical: scaleVertical(16), 
+    paddingHorizontal: scale(16),
+    borderRadius: scale(16), 
     alignSelf: 'center',
+    marginHorizontal: scale(20),
   },
 });
 

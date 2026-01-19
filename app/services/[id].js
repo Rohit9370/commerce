@@ -1,117 +1,147 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Linking,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useDispatch, useSelector } from 'react-redux';
+import { useUserRole } from '../../hooks/useUserRole';
+import { selectAuth } from '../../store';
+import { createBooking } from '../../store/slices/bookingsSlice';
 import { db } from '../services/firebaseconfig';
 
-export default function ServiceDetailsScreen() {
-  const { id } = useLocalSearchParams();
+export default function ServiceDetailScreen({ id }) {
   const router = useRouter();
-  const [service, setService] = useState(null);
+  
+  console.log('ServiceDetailScreen rendered with id:', id);
+  const dispatch = useDispatch();
+  const { userData: user } = useUserRole();
+  const { uid: userId } = useSelector(selectAuth);
+  
+  const [shopData, setShopData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isBookable, setIsBookable] = useState(false);
+  const [bookingLoading, setBookingLoading] = useState(false);
 
   useEffect(() => {
-    fetchServiceDetails();
+    if (id) {
+      fetchShopDetails();
+    }
   }, [id]);
 
-  const fetchServiceDetails = async () => {
+  const fetchShopDetails = async () => {
+    if (!id) {
+      console.error('Service ID is missing');
+      setLoading(false);
+      return;
+    }
+    
+    console.log('Fetching service details for ID:', id);
+    
     try {
-      const docRef = await getDoc(doc(db, 'users', id));
-      if (docRef.exists()) {
-        const serviceData = docRef.data();
-        setService(serviceData);
-        
-        // Check if shop is open based on timing
-        const now = new Date();
-        const currentHour = now.getHours();
-        const currentMinute = now.getMinutes();
-        
-        // Convert time strings to minutes for comparison
-        if (serviceData.timing) {
-          const openTime = parseTimeString(serviceData.timing.open);
-          const closeTime = parseTimeString(serviceData.timing.close);
-          
-          // Calculate if shop is currently open
-          const currentMinutes = currentHour * 60 + currentMinute;
-          setIsBookable(currentMinutes >= openTime && currentMinutes <= closeTime);
-        }
+      const docRef = doc(db, 'users', id);
+      const docSnap = await getDoc(docRef);
+      
+      console.log('Document exists:', docSnap.exists());
+      
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        console.log('Service data:', data);
+        setShopData(data);
+      } else {
+        console.log('No document found for ID:', id);
       }
     } catch (error) {
-      console.error('Error fetching service details:', error);
-      Alert.alert('Error', 'Failed to load service details');
+      console.error('Error fetching shop details:', error);
+      Alert.alert('Error', `Failed to load shop details: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const parseTimeString = (timeStr) => {
-    // Parse time string like "8:48 AM" or "8:48 PM"
-    const [time, period] = timeStr.split(/\s+/);
-    let [hours, minutes] = time.split(':').map(Number);
-    
-    if (period === 'PM' && hours !== 12) {
-      hours += 12;
-    } else if (period === 'AM' && hours === 12) {
-      hours = 0;
-    }
-    
-    return hours * 60 + minutes;
-  };
-
-  const handleBooking = () => {
-    if (!isBookable) {
-      Alert.alert('Closed', 'This shop is currently closed. Bookings are only available during business hours.');
+  const handleBookService = async () => {
+    if (!userId) {
+      Alert.alert('Error', 'Please log in to book a service');
       return;
     }
-    
-    // Navigate to booking page with service details
-    router.push(`/bookings/new?serviceId=${id}&serviceName=${encodeURIComponent(service?.shopName || '')}`);
-  };
 
-  const handleCall = () => {
-    if (service?.shopPhone) {
-      Linking.openURL(`tel:${service.shopPhone}`);
-    }
-  };
+    try {
+      setBookingLoading(true);
+      
+      // Prepare booking data
+      const bookingData = {
+        userId: userId,
+        userName: user?.fullName || 'User',
+        shopId: id,
+        shopName: shopData?.shopName || 'Unknown Shop',
+        serviceName: shopData?.category || 'Service',
+        bookingDate: new Date(),
+        bookingTime: new Date().toLocaleTimeString(),
+        status: 'pending', // Default status
+        price: shopData?.price || 0,
+      };
+      
+      console.log('Creating booking with data:', bookingData);
 
-  const handleLocation = () => {
-    if (service?.location) {
-      const { latitude, longitude } = service.location;
-      const url = `https://www.google.com/maps?q=${latitude},${longitude}`;
-      Linking.openURL(url);
+      // Create booking using Redux action
+      const result = await dispatch(createBooking(bookingData));
+      
+      if (result.meta.requestStatus === 'fulfilled') {
+        Alert.alert(
+          'Booking Request Sent!',
+          'Your booking request has been sent to the service provider. They will accept or reject your request.',
+          [
+            {
+              text: 'OK',
+              onPress: () => router.push('/(tabs)/bookings')
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Error', 'Failed to book service. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error booking service:', error);
+      Alert.alert('Error', 'Failed to book service. Please try again.');
+    } finally {
+      setBookingLoading(false);
     }
   };
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6366f1" />
-      </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text>Loading service details...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
-  if (!service) {
+  if (!id) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>Service not found</Text>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>Go Back</Text>
-        </TouchableOpacity>
-      </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text>Error: Service ID not provided</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!shopData) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text>Service not found</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -120,163 +150,107 @@ export default function ServiceDetailsScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#1F2937" />
+          <TouchableOpacity onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="#1e293b" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Service Details</Text>
           <View style={{ width: 24 }} /> {/* Spacer */}
         </View>
 
-        {/* Enhanced Shop Banner with Carousel */}
-        <View style={styles.bannerContainer}>
-          {service.shopImages && service.shopImages.length > 0 ? (
-            <>
-              <FlatList
-                data={service.shopImages}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                renderItem={({ item, index }) => (
-                  <View style={styles.bannerSlide}>
-                    <Image 
-                      source={{ uri: item }} 
-                      style={styles.bannerImage} 
-                      contentFit="cover" 
-                    />
-                    <View style={styles.imageOverlay}>
-                      <View style={styles.imageCounter}>
-                        <Text style={styles.counterText}>
-                          {index + 1}/{service.shopImages.length}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                )}
-                keyExtractor={(item, index) => index.toString()}
-              />
-            </>
+        {/* Shop Images */}
+        <View style={styles.imageContainer}>
+          {shopData.shopImages && shopData.shopImages.length > 0 ? (
+            <Image
+              source={{ uri: shopData.shopImages[0] }}
+              style={styles.shopImage}
+              contentFit="cover"
+            />
           ) : (
-            <View style={styles.placeholderBanner}>
-              <Ionicons name="business" size={64} color="#9CA3AF" />
-              <Text style={styles.placeholderText}>No Images Available</Text>
-              <Text style={styles.placeholderSubtext}>{service.shopName}</Text>
+            <View style={styles.placeholderImage}>
+              <Ionicons name="image-outline" size={48} color="#cbd5e1" />
+              <Text style={styles.placeholderText}>No Image Available</Text>
             </View>
           )}
         </View>
 
-        {/* Enhanced Shop Info */}
+        {/* Shop Info */}
         <View style={styles.infoContainer}>
-          <View style={styles.shopHeader}>
-            <View style={styles.shopTitleContainer}>
-              <Text style={styles.shopName}>{service.shopName}</Text>
-              <Text style={styles.ownerName}>{service.ownerName || 'Shop Owner'}</Text>
-            </View>
-            <View style={[styles.statusBadge, { backgroundColor: isBookable ? '#10B981' : '#EF4444' }]}>
-              <Text style={styles.statusText}>{isBookable ? 'Open' : 'Closed'}</Text>
-            </View>
-          </View>
+          <Text style={styles.shopName}>{shopData.shopName}</Text>
+          <Text style={styles.category}>{shopData.category}</Text>
           
-          {/* Category Section */}
-          <View style={styles.detailSection}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="pricetags" size={20} color="#6366F1" />
-              <Text style={styles.sectionTitle}>Category</Text>
-            </View>
-            <View style={styles.chipContainer}>
-              <View style={styles.categoryChip}>
-                <Text style={styles.chipText}>{service.category}</Text>
-              </View>
-            </View>
+          <View style={styles.locationContainer}>
+            <Ionicons name="location-outline" size={16} color="#64748b" />
+            <Text style={styles.address}>{shopData.address}</Text>
           </View>
 
-          {/* Location Section */}
-          <View style={styles.detailSection}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="location" size={20} color="#6366F1" />
-              <Text style={styles.sectionTitle}>Location</Text>
-            </View>
-            <View style={styles.locationContainer}>
-              <Ionicons name="location-sharp" size={16} color="#6366F1" />
-              <Text style={styles.locationText} numberOfLines={3}>{service.address}</Text>
-            </View>
-          </View>
-
-          {/* Timing Section */}
-          <View style={styles.detailSection}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="time" size={20} color="#6366F1" />
-              <Text style={styles.sectionTitle}>Business Hours</Text>
-            </View>
-            <View style={styles.timingRow}>
-              <View style={styles.timeItem}>
-                <Text style={styles.timeLabel}>Opens:</Text>
-                <Text style={styles.timeValue}>{service.timing?.open || 'N/A'}</Text>
-              </View>
-              <View style={styles.timeItem}>
-                <Text style={styles.timeLabel}>Closes:</Text>
-                <Text style={styles.timeValue}>{service.timing?.close || 'N/A'}</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Off Days Section */}
-          <View style={styles.detailSection}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="calendar" size={20} color="#6366F1" />
-              <Text style={styles.sectionTitle}>Weekly Off Days</Text>
-            </View>
-            <View style={styles.daysContainer}>
-              {service.offDays && service.offDays.length > 0 ? (
-                <View style={styles.daysChips}>
-                  {service.offDays.map((day, index) => (
-                    <View key={index} style={styles.dayChip}>
-                      <Text style={styles.dayChipText}>{day.substring(0,3)}</Text>
-                    </View>
-                  ))}
+          {/* Services offered */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Services Offered</Text>
+            {shopData.services && shopData.services.length > 0 ? (
+              shopData.services.map((service, index) => (
+                <View key={index} style={styles.serviceItem}>
+                  <Text style={styles.serviceName}>{service.name}</Text>
+                  <Text style={styles.servicePrice}>{service.price}</Text>
                 </View>
-              ) : (
-                <Text style={styles.noDaysText}>No off days</Text>
-              )}
-            </View>
+              ))
+            ) : (
+              <Text>No services listed</Text>
+            )}
           </View>
 
-          {/* Contact Section */}
-          <View style={styles.detailSection}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="call" size={20} color="#6366F1" />
-              <Text style={styles.sectionTitle}>Contact</Text>
+          {/* Timing */}
+          {shopData.timing && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Business Hours</Text>
+              <Text style={styles.timingText}>
+                {shopData.timing.open} - {shopData.timing.close}
+              </Text>
             </View>
-            <View style={styles.contactContainer}>
-              <Ionicons name="call" size={16} color="#6366F1" />
-              <Text style={styles.contactText}>{service.shopPhone || 'Not provided'}</Text>
+          )}
+
+          {/* Off Days */}
+          {shopData.offDays && shopData.offDays.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Closed Days</Text>
+              <Text style={styles.offDaysText}>{shopData.offDays.join(', ')}</Text>
+            </View>
+          )}
+
+          {/* Contact Info */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Contact Information</Text>
+            <View style={styles.contactItem}>
+              <Ionicons name="call-outline" size={16} color="#64748b" />
+              <Text style={styles.contactText}>{shopData.shopPhone || 'N/A'}</Text>
+            </View>
+            <View style={styles.contactItem}>
+              <Ionicons name="mail-outline" size={16} color="#64748b" />
+              <Text style={styles.contactText}>{shopData.email || 'N/A'}</Text>
             </View>
           </View>
-        </View>
-
-        {/* Action Buttons */}
-        <View style={styles.actionButtonsContainer}>
-          <TouchableOpacity 
-            style={[styles.actionButton, { backgroundColor: isBookable ? '#6366F1' : '#9CA3AF' }]} 
-            onPress={handleBooking}
-            disabled={!isBookable}
-          >
-            <Ionicons name="calendar" size={20} color="#FFFFFF" />
-            <Text style={styles.actionButtonText}>
-              {isBookable ? 'Book Now' : 'Shop Closed'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.actionButton, { backgroundColor: '#10B981' }]} onPress={handleCall}>
-            <Ionicons name="call" size={20} color="#FFFFFF" />
-            <Text style={styles.actionButtonText}>Call</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.actionButton, { backgroundColor: '#F59E0B' }]} onPress={handleLocation}>
-            <Ionicons name="location" size={20} color="#FFFFFF" />
-            <Text style={styles.actionButtonText}>Direction</Text>
-          </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Book Now Button */}
+      <View style={styles.bottomContainer}>
+        <TouchableOpacity
+          style={styles.bookButton}
+          onPress={handleBookService}
+          disabled={bookingLoading}
+        >
+          {bookingLoading ? (
+            <>
+              <Ionicons name="time-outline" size={20} color="#ffffff" />
+              <Text style={styles.bookButtonText}>Sending Request...</Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="calendar-outline" size={20} color="#ffffff" />
+              <Text style={styles.bookButtonText}>Book Now</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -284,260 +258,133 @@ export default function ServiceDetailsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#f8fafc',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  errorText: {
-    fontSize: 18,
-    textAlign: 'center',
-    margin: 20,
-    color: '#EF4444',
-  },
-  backButton: {
-    padding: 10,
-  },
-  backButtonText: {
-    fontSize: 16,
-    color: '#6366F1',
-    fontWeight: '500',
-  },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: '#FFFFFF',
+    paddingTop: 10,
+    paddingBottom: 16,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#1e293b',
   },
-  bannerContainer: {
-    height: 280,
+  imageContainer: {
+    height: 250,
   },
-  bannerSlide: {
+  shopImage: {
     width: '100%',
     height: '100%',
   },
-  bannerImage: {
-    width: '100%',
-    height: '100%',
-  },
-  imageOverlay: {
-    position: 'absolute',
-    top: 15,
-    right: 15,
-  },
-  imageCounter: {
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderRadius: 15,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  counterText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  placeholderBanner: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#F3F4F6',
+  placeholderImage: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    backgroundColor: '#e2e8f0',
   },
   placeholderText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginTop: 10,
-  },
-  placeholderSubtext: {
+    marginTop: 8,
     fontSize: 14,
-    color: '#9CA3AF',
-    marginTop: 5,
+    color: '#64748b',
   },
   infoContainer: {
-    backgroundColor: '#FFFFFF',
-    margin: 20,
-    marginTop: -30,
-    borderRadius: 20,
-    padding: 20,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    zIndex: 10,
-  },
-  shopHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 20,
-  },
-  shopTitleContainer: {
     flex: 1,
-    marginRight: 10,
+    backgroundColor: '#ffffff',
+    marginTop: -20,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
   },
   shopName: {
     fontSize: 24,
-    fontWeight: '800',
-    color: '#1F2937',
+    fontWeight: '700',
+    color: '#1e293b',
     marginBottom: 4,
   },
-  ownerName: {
+  category: {
     fontSize: 16,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  statusBadge: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    alignSelf: 'flex-start',
-  },
-  statusText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  detailSection: {
-    marginBottom: 25,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginLeft: 10,
-  },
-  chipContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  categoryChip: {
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 10,
-    marginBottom: 10,
-  },
-  chipText: {
-    color: '#4F46E5',
-    fontWeight: '600',
-    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 16,
   },
   locationContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    marginBottom: 24,
   },
-  locationText: {
-    fontSize: 16,
-    color: '#374151',
-    marginLeft: 12,
-    flex: 1,
-    lineHeight: 22,
+  address: {
+    fontSize: 14,
+    color: '#64748b',
+    marginLeft: 8,
   },
-  timingRow: {
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 12,
+  },
+  serviceItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 15,
-  },
-  timeItem: {
     alignItems: 'center',
+    paddingVertical: 8,
   },
-  timeLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 4,
+  serviceName: {
+    fontSize: 16,
+    color: '#334155',
   },
-  timeValue: {
+  servicePrice: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#4f46e5',
   },
-  daysContainer: {
-    marginTop: 8,
+  timingText: {
+    fontSize: 16,
+    color: '#334155',
   },
-  daysChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  offDaysText: {
+    fontSize: 16,
+    color: '#334155',
   },
-  dayChip: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    marginRight: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  dayChipText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  noDaysText: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    fontStyle: 'italic',
-  },
-  contactContainer: {
+  contactItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0FDF4',
-    borderRadius: 12,
-    padding: 15,
+    paddingVertical: 8,
   },
   contactText: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#15803D',
-    marginLeft: 12,
+    color: '#334155',
+    marginLeft: 8,
   },
-  actionButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: '#FFFFFF',
-    margin: 20,
-    borderRadius: 20,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+  bottomContainer: {
+    padding: 20,
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
   },
-  actionButton: {
+  bookButton: {
+    backgroundColor: '#4f46e5',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 15,
-    minWidth: 80,
+    paddingVertical: 16,
+    borderRadius: 12,
+    gap: 8,
   },
-  actionButtonText: {
-    color: '#FFFFFF',
+  bookButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
     fontWeight: '600',
-    fontSize: 12,
-    marginLeft: 5,
   },
 });

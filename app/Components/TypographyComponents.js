@@ -1,7 +1,7 @@
 import { StyleSheet, Text } from 'react-native';
 
 const TypographyComponents = ({ children, size = 'md', font = 'reg', other = '', style, align, color }) => {
-  // Size mapping
+
   const sizeStyles = {
     'xs': styles.xs,
     'sm': styles.sm,
@@ -13,7 +13,7 @@ const TypographyComponents = ({ children, size = 'md', font = 'reg', other = '',
     '4xl': styles.xxxxl,
   };
 
-  // Font weight mapping
+
   const fontStyles = {
     'light': styles.light,
     'reg': styles.regular,
@@ -22,7 +22,7 @@ const TypographyComponents = ({ children, size = 'md', font = 'reg', other = '',
     'bold': styles.bold,
   };
 
-  // Combine all styles
+
   const combinedStyles = [
     styles.base,
     sizeStyles[size] || styles.md,
@@ -30,17 +30,17 @@ const TypographyComponents = ({ children, size = 'md', font = 'reg', other = '',
     style,
   ];
 
-  // Add text alignment
   if (align) {
     combinedStyles.push({ textAlign: align });
   }
 
-  // Add direct color
+  
   if (color) {
     combinedStyles.push({ color });
   }
 
-  // Parse the 'other' prop for additional styling (tailwind-like classes)
+
+
   if (other) {
     const otherClasses = other.split(' ');
     otherClasses.forEach(cls => {
@@ -75,7 +75,6 @@ const TypographyComponents = ({ children, size = 'md', font = 'reg', other = '',
   );
 };
 
-// Color mappings for tailwind-like classes
 const GRAY_SCALE = {
   '50': 'f9fafb',
   '100': 'f3f4f6',
@@ -100,8 +99,10 @@ const COLOR_MAP = {
 const styles = StyleSheet.create({
   base: {
     includeFontPadding: false,
+    textAlign:'center',
+    color:"white"
   },
-  // Sizes
+
   xs: { fontSize: 12 },
   sm: { fontSize: 14 },
   md: { fontSize: 16 },
@@ -110,7 +111,7 @@ const styles = StyleSheet.create({
   xxl: { fontSize: 24 },
   xxxl: { fontSize: 30 },
   xxxxl: { fontSize: 36 },
-  // Font weights
+
   light: { fontWeight: '300' },
   regular: { fontWeight: '400' },
   medium: { fontWeight: '500' },

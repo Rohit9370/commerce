@@ -29,7 +29,8 @@ import { saveAuthData, saveOnboardingStatus } from "../../utils/authStorage";
 import TypographyComponents from "../Components/TypographyComponents";
 import { auth, db } from "../services/firebaseconfig";
 
-// Camera and Gallery Options Modal
+
+
 const CameraGalleryOptions = ({
   visible,
   onClose,
@@ -68,6 +69,7 @@ const CameraGalleryOptions = ({
 // 90+ Categories List
 const categoryList = [
   "Tailor",
+  "food stole",
   "Parlour",
   "Mehendi Artist",
   "Barber Shop",
@@ -120,6 +122,7 @@ const Registration = () => {
   const [userCoords, setUserCoords] = useState(null);
 
   // Shop States
+  const [ownerName, setOwnerName] = useState("");
   const [shopName, setShopName] = useState("");
   const [shopPhone, setShopPhone] = useState("");
   const [shopAddress, setShopAddress] = useState("");
@@ -128,6 +131,9 @@ const Registration = () => {
   const [shopVideo, setShopVideo] = useState(null); // Shop Video
   const [selectedCat, setSelectedCat] = useState("");
   const [offDays, setOffDays] = useState([]); // Multiple Closing Days
+  const [experience, setExperience] = useState("");
+  const [description, setDescription] = useState("");
+  const [services, setServices] = useState([{ name: "", price: "", description: "" }]); // Services array with description
 
   // Modal & Time Picker States
   const [catModal, setCatModal] = useState(false);
@@ -170,14 +176,13 @@ const Registration = () => {
   };
 
   const uploadVideoToCloudinary = async (uri) => {
-    // For video upload to Cloudinary
+
     const timestamp = Date.now();
 
-    // Prepare the form data for video
     const formData = new FormData();
     formData.append("file", { uri, type: "video/mp4", name: "upload.mp4" });
     formData.append("timestamp", timestamp);
-    formData.append("upload_preset", "serviceprovider"); // Using your unsigned upload preset name
+    formData.append("upload_preset", "serviceprovider"); 
 
     try {
       const res = await fetch(
@@ -241,7 +246,7 @@ const Registration = () => {
   };
 
   const takePhoto = async () => {
-    // Request camera permission
+    
     const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
 
     if (permissionResult.status !== "granted") {
@@ -270,7 +275,6 @@ const Registration = () => {
   };
 
   const pickVideo = async () => {
-    // Request media library permission
     const permissionResult =
       await ImagePicker.requestMediaLibraryPermissionsAsync();
 
@@ -292,7 +296,7 @@ const Registration = () => {
     if (!result.canceled) {
       const asset = result.assets[0];
 
-      // Check video duration (max 90 seconds = 1.5 minutes)
+      
       if (asset.duration > 90) {
         Alert.alert(
           "Video Too Long",
@@ -314,9 +318,9 @@ const Registration = () => {
 
     if (
       selectedRole === "shopkeeper" &&
-      (!shopName || !shopPhone || !shopAddress || !shopCoords || !selectedCat)
+      (!ownerName || !shopName || !shopPhone || !shopAddress || !shopCoords || !selectedCat || !experience || !description || services.some(s => !s.name || !s.price))
     ) {
-      return setError("Please fill all shop details");
+      return setError("Please fill all shop details including services");
     }
 
     setLoading(true);
@@ -329,13 +333,11 @@ const Registration = () => {
 
       console.log("User created with UID:", userCred.user.uid);
 
-      // Upload images one by one
       const uploadedUrls = await Promise.all(
         shopImages.map((uri) => uploadToCloudinary(uri)),
       );
       console.log("Uploaded image URLs:", uploadedUrls);
 
-      // Upload video if exists
       const uploadedVideoUrl = shopVideo
         ? await uploadVideoToCloudinary(shopVideo)
         : null;
@@ -344,7 +346,7 @@ const Registration = () => {
       const userData = {
         uid: userCred.user.uid,
         email,
-        role: selectedRole, // 'user' or 'shopkeeper'
+        role: selectedRole,
         isActive: true,
         ...(selectedRole === "user"
           ? {
@@ -354,6 +356,7 @@ const Registration = () => {
               location: userCoords,
             }
           : {
+              ownerName,
               shopName,
               shopPhone,
               category: selectedCat,
@@ -361,6 +364,10 @@ const Registration = () => {
               location: shopCoords,
               address: shopAddress,
               shopImages: uploadedUrls,
+              shopVideo: uploadedVideoUrl,
+              experience,
+              description,
+              services: services.filter(s => s.name && s.price), 
               timing: {
                 open: openTime.toLocaleTimeString([], {
                   hour: "2-digit",
@@ -371,6 +378,9 @@ const Registration = () => {
                   minute: "2-digit",
                 }),
               },
+              rating: 0,
+              totalBookings: 0,
+              isVerified: false,
             }),
       };
 
@@ -378,12 +388,12 @@ const Registration = () => {
       console.log("User UID:", userCred.user.uid);
 
       if (userCred && userCred.user && userCred.user.uid) {
-        // Verify Firestore is accessible
+     
         const userDocRef = doc(db, "users", userCred.user.uid);
         await setDoc(userDocRef, userData);
         console.log("User data saved successfully");
 
-        // Verify the data was saved
+
         const savedDoc = await getDoc(userDocRef);
         if (savedDoc.exists()) {
           console.log("Verified: User data exists in Firestore");
@@ -391,26 +401,24 @@ const Registration = () => {
           console.log("Warning: User data does not exist after saving");
         }
 
-        // Set onboarding as completed and save to both Redux and AsyncStorage
+     
         dispatch(setOnboarded(true));
         await saveOnboardingStatus(true);
 
-        // Create auth data object to store in Redux and AsyncStorage
         const authData = {
           uid: userCred.user.uid,
           email: userCred.user.email,
           role: selectedRole,
           userData: userData,
         };
-
-        // Dispatch auth state to Redux and save to AsyncStorage
+e
         dispatch(setAuth(authData));
         await saveAuthData(authData);
       } else {
         console.log("Invalid user credentials");
         throw new Error("Invalid user credentials");
       }
-      // Redirect based on role after successful registration
+     
       if (selectedRole === "admin" || selectedRole === "shopkeeper") {
         router.replace("/(tabs)/_admin-home");
       } else if (selectedRole === "super-admin") {
@@ -436,7 +444,7 @@ const Registration = () => {
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header with back arrow */}
+   
         <View style={styles.headerContainer}>
           <TouchableOpacity
             onPress={() => router.back()}
@@ -479,6 +487,13 @@ const Registration = () => {
         <View style={styles.form}>
           {selectedRole === "shopkeeper" ? (
             <>
+              <Text style={styles.inputLabel}>Owner/Manager Name</Text>
+              <TextInput
+                placeholder="Enter owner/manager name"
+                style={styles.input}
+                onChangeText={setOwnerName}
+              />
+
               <Text style={styles.inputLabel}>Shop Name</Text>
               <TextInput
                 placeholder="Enter shop name"
@@ -570,6 +585,85 @@ const Registration = () => {
                 <Text style={styles.locationBtnText}>
                   {shopAddress || "Detect Shop Location"}
                 </Text>
+              </TouchableOpacity>
+
+              {/* Experience */}
+              <Text style={styles.inputLabel}>Years of Experience</Text>
+              <TextInput
+                placeholder="e.g., 5 years"
+                style={styles.input}
+                onChangeText={setExperience}
+                keyboardType="numeric"
+              />
+
+              {/* Description */}
+              <Text style={styles.inputLabel}>Shop Description</Text>
+              <TextInput
+                placeholder="Describe your services and expertise"
+                style={[styles.input, styles.textArea]}
+                onChangeText={setDescription}
+                multiline
+                numberOfLines={3}
+              />
+
+              {/* Services */}
+              <Text style={styles.sectionTitle}>Services & Pricing</Text>
+              {services.map((service, index) => (
+                <View key={index} style={styles.serviceContainer}>
+                  <View style={styles.serviceRow}>
+                    <TextInput
+                      placeholder="Service name"
+                      style={[styles.input, { flex: 2, marginRight: 10 }]}
+                      value={service.name}
+                      onChangeText={(text) => {
+                        const newServices = [...services];
+                        newServices[index].name = text;
+                        setServices(newServices);
+                      }}
+                    />
+                    <TextInput
+                      placeholder="Price range"
+                      style={[styles.input, { flex: 1 }]}
+                      value={service.price}
+                      onChangeText={(text) => {
+                        const newServices = [...services];
+                        newServices[index].price = text;
+                        setServices(newServices);
+                      }}
+                    />
+                    {services.length > 1 && (
+                      <TouchableOpacity
+                        style={styles.removeServiceBtn}
+                        onPress={() => {
+                          const newServices = services.filter((_, i) => i !== index);
+                          setServices(newServices);
+                        }}
+                      >
+                        <Ionicons name="close" size={20} color="#EF4444" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <TextInput
+                    placeholder="Service description (optional)"
+                    style={[styles.input, styles.serviceDescription]}
+                    value={service.description || ''}
+                    onChangeText={(text) => {
+                      const newServices = [...services];
+                      newServices[index].description = text;
+                      setServices(newServices);
+                    }}
+                    multiline
+                    numberOfLines={2}
+                  />
+                </View>
+              ))}
+              
+              <TouchableOpacity
+                style={styles.addServiceBtn}
+                onPress={() => setServices([...services, { name: "", price: "", description: "" }])}
+              >
+                <Ionicons name="add" size={20} color="#6366F1" />
+                <Text style={styles.addServiceText}>Add Another Service</Text>
               </TouchableOpacity>
 
               {/* Multiple Image Preview */}
@@ -858,6 +952,50 @@ const styles = StyleSheet.create({
   thumb: { width: 70, height: 70, borderRadius: 12, marginRight: 10 },
   videoPreviewContainer: { marginTop: 10, alignItems: "center" },
   videoPreview: { width: 200, height: 150, borderRadius: 12 },
+  textArea: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
+  serviceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  serviceContainer: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  serviceDescription: {
+    marginTop: 8,
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  removeServiceBtn: {
+    marginLeft: 10,
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#FEF2F2',
+  },
+  addServiceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#6366F1',
+    borderStyle: 'dashed',
+    marginTop: 10,
+  },
+  addServiceText: {
+    color: '#6366F1',
+    fontWeight: '600',
+    marginLeft: 8,
+  },
   mainBtn: {
     backgroundColor: "#FFFFFF",
     padding: 20,

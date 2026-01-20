@@ -1,13 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
-import { doc, getDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, updateDoc, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import { useUserRole } from '../../hooks/useUserRole';
 import { selectAuth } from '../../store';
 import { db } from '../services/firebaseconfig';
+
 
 export default function AdminHomeScreen({ userData }) {
   const router = useRouter();
@@ -16,6 +18,75 @@ export default function AdminHomeScreen({ userData }) {
   const [shopData, setShopData] = useState(userData || authUserData);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ totalBookings: 0, activeServices: 0, reviews: 0 });
+  
+
+  const [showTimeModal, setShowTimeModal] = useState(false);
+  const [timeUpdating, setTimeUpdating] = useState(false);
+  const [newTiming, setNewTiming] = useState({
+    open: '',
+    close: '',
+    isOpen24Hours: false
+  });
+
+  const [showOpenTimePicker, setShowOpenTimePicker] = useState(false);
+  const [showCloseTimePicker, setShowCloseTimePicker] = useState(false);
+  const [openTime, setOpenTime] = useState(new Date());
+  const [closeTime, setCloseTime] = useState(new Date());
+
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const fetchStats = async (shopInfo) => {
+    if (!uid) return;
+    
+    try {
+
+      const bookingsQuery = query(
+        collection(db, 'bookings'),
+        where('providerId', '==', uid)
+      );
+      const bookingsSnapshot = await getDocs(bookingsQuery);
+      const totalBookings = bookingsSnapshot.size;
+
+      const activeServices = shopInfo?.services?.filter(service => service.active !== false).length || 0;
+
+    
+      let reviewsCount = 0;
+      try {
+        const reviewsQuery = query(
+          collection(db, 'reviews'),
+          where('providerId', '==', uid)
+        );
+        const reviewsSnapshot = await getDocs(reviewsQuery);
+        reviewsCount = reviewsSnapshot.size;
+      } catch (reviewError) {
+
+        console.log('Reviews collection not found, using 0');
+        reviewsCount = 0;
+      }
+
+      setStats({
+        totalBookings,
+        activeServices,
+        reviews: reviewsCount
+      });
+    } catch (error) {
+      console.error('Error fetching real stats:', error);
+   
+      setStats({
+        totalBookings: 0,
+        activeServices: shopInfo?.services?.length || 0,
+        reviews: 0
+      });
+    }
+  };
 
   useEffect(() => {
     const fetchShopData = async () => {
@@ -23,9 +94,28 @@ export default function AdminHomeScreen({ userData }) {
         if (uid) {
           const userDoc = await getDoc(doc(db, 'users', uid));
           if (userDoc.exists()) {
-            setShopData(userDoc.data());
-            // Fetch stats
-            fetchStats(userDoc.data());
+            const data = userDoc.data();
+            setShopData(data);
+     
+            if (data.timing) {
+              setNewTiming({
+                open: data.timing.open || '',
+                close: data.timing.close || '',
+                isOpen24Hours: data.timing.isOpen24Hours || false
+              });
+           
+              if (data.timing.open && data.timing.open !== '24 Hours') {
+                const openTimeDate = parseTimeString(data.timing.open);
+                if (openTimeDate) setOpenTime(openTimeDate);
+              }
+              
+              if (data.timing.close && data.timing.close !== '24 Hours') {
+                const closeTimeDate = parseTimeString(data.timing.close);
+                if (closeTimeDate) setCloseTime(closeTimeDate);
+              }
+            }
+
+            await fetchStats(data);
           }
         }
       } catch (error) {
@@ -34,22 +124,156 @@ export default function AdminHomeScreen({ userData }) {
       setLoading(false);
     };
     
-    const fetchStats = async (shopInfo) => {
-      try {
-        // Simulate fetching booking statistics
-        // In a real app, this would query the bookings collection
-        setStats({
-          totalBookings: Math.floor(Math.random() * 100),
-          activeServices: shopInfo?.services?.length || 0,
-          reviews: Math.floor(Math.random() * 50)
-        });
-      } catch (error) {
-        console.error('Error fetching stats:', error);
-      }
-    };
-    
     fetchShopData();
   }, [uid]);
+
+
+  const parseTimeString = (timeStr) => {
+    if (!timeStr || timeStr === '24 Hours') return null;
+    
+    const match = timeStr.match(/^(\d+):(\d+)\s*(AM|PM)$/i);
+    if (!match) return null;
+    
+    let hours = parseInt(match[1]);
+    const minutes = parseInt(match[2]);
+    const period = match[3].toUpperCase();
+    
+    if (period === 'PM' && hours !== 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+    
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+    return date;
+  };
+
+  const formatTimeString = (date) => {
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+ 
+  const handleOpenTimeChange = (event, selectedTime) => {
+    setShowOpenTimePicker(Platform.OS === 'ios');
+    if (selectedTime) {
+      setOpenTime(selectedTime);
+      const formattedTime = formatTimeString(selectedTime);
+      setNewTiming(prev => ({
+        ...prev,
+        open: formattedTime
+      }));
+    }
+  };
+
+  const handleCloseTimeChange = (event, selectedTime) => {
+    setShowCloseTimePicker(Platform.OS === 'ios');
+    if (selectedTime) {
+      setCloseTime(selectedTime);
+      const formattedTime = formatTimeString(selectedTime);
+      setNewTiming(prev => ({
+        ...prev,
+        close: formattedTime
+      }));
+    }
+  };
+
+
+  const updateShopTiming = async () => {
+    if (!uid) return;
+    
+    if (!newTiming.isOpen24Hours && (!newTiming.open || !newTiming.close)) {
+      Alert.alert('Error', 'Please set both opening and closing times.');
+      return;
+    }
+    
+    setTimeUpdating(true);
+    try {
+      const updatedTiming = {
+        open: newTiming.isOpen24Hours ? '24 Hours' : newTiming.open,
+        close: newTiming.isOpen24Hours ? '24 Hours' : newTiming.close,
+        isOpen24Hours: newTiming.isOpen24Hours,
+        lastUpdated: new Date().toISOString()
+      };
+
+      await updateDoc(doc(db, 'users', uid), {
+        timing: updatedTiming
+      });
+
+
+      setShopData(prev => ({
+        ...prev,
+        timing: updatedTiming
+      }));
+
+      Alert.alert('Success', 'Shop timing updated successfully!');
+      setShowTimeModal(false);
+      setShowOpenTimePicker(false);
+      setShowCloseTimePicker(false);
+
+      setTimeout(async () => {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', uid));
+          if (userDoc.exists()) {
+            const refreshedData = userDoc.data();
+            setShopData(refreshedData);
+        
+            await fetchStats(refreshedData);
+          }
+        } catch (error) {
+          console.error('Error refreshing data:', error);
+        }
+      }, 500);
+      
+    } catch (error) {
+      console.error('Error updating timing:', error);
+      Alert.alert('Error', 'Failed to update timing. Please try again.');
+    } finally {
+      setTimeUpdating(false);
+    }
+  };
+
+  const isShopOpen = () => {
+    if (!shopData?.timing) return false;
+    
+
+    if (shopData.timing.isOpen24Hours || 
+        shopData.timing.open === '24 Hours' || 
+        shopData.timing.close === '24 Hours') {
+      return true;
+    }
+    
+    const now = new Date();
+    const currentTime = now.getHours() * 60 + now.getMinutes();
+    
+    const parseTime = (timeStr) => {
+      if (!timeStr || timeStr === '24 Hours') return 0;
+      const match = timeStr.match(/^(\d+):(\d+)\s*(AM|PM)$/i);
+      if (!match) return 0;
+      
+      let hours = parseInt(match[1]);
+      const minutes = parseInt(match[2]);
+      const period = match[3].toUpperCase();
+      
+      if (period === 'PM' && hours !== 12) hours += 12;
+      if (period === 'AM' && hours === 12) hours = 0;
+      
+      return hours * 60 + minutes;
+    };
+    
+    const openTime = parseTime(shopData.timing.open);
+    const closeTime = parseTime(shopData.timing.close);
+    
+ 
+    if (openTime === 0 && closeTime === 0) return false;
+    
+    if (closeTime >= openTime) {
+      return currentTime >= openTime && currentTime <= closeTime;
+    } else {
+      return currentTime >= openTime || currentTime <= closeTime;
+    }
+  };
 
   if (loading) {
     return (
@@ -64,19 +288,87 @@ export default function AdminHomeScreen({ userData }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        bounces={true}
+        overScrollMode="always"
+      >
         {/* Header with Welcome */}
         <View style={styles.headerContainer}>
           <View style={styles.headerContent}>
             <Text style={styles.welcomeText}>Welcome back,</Text>
             <Text style={styles.shopName}>{shopData?.shopName || shopData?.fullName || 'Service Provider'}</Text>
-          </View>
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatarPlaceholder}>
-              <Text style={styles.avatarText}>{(shopData?.shopName || shopData?.fullName || 'SP')[0]}</Text>
+            <View style={styles.timeContainer}>
+              <Text style={styles.currentTimeText}>
+                {currentTime.toLocaleTimeString('en-US', { 
+                  hour: '2-digit', 
+                  minute: '2-digit',
+                  hour12: true 
+                })}
+              </Text>
+              <View style={[styles.statusBadge, isShopOpen() ? styles.openBadge : styles.closedBadge]}>
+                <Text style={[styles.statusText, isShopOpen() ? styles.openText : styles.closedText]}>
+                  {isShopOpen() ? 'OPEN' : 'CLOSED'}
+                </Text>
+              </View>
             </View>
           </View>
+          <TouchableOpacity style={styles.avatarContainer} onPress={() => setShowTimeModal(true)}>
+            <View style={styles.avatarPlaceholder}>
+              <Ionicons name="time" size={24} color="#4f46e5" />
+            </View>
+          </TouchableOpacity>
         </View>
+
+        {/* Shop Banner/Image */}
+        <View style={styles.bannerContainer}>
+          {shopData?.shopImages && shopData.shopImages.length > 0 ? (
+            <Image
+              source={{ uri: shopData.shopImages[0] }}
+              style={styles.bannerImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.defaultBanner}>
+              <Ionicons name="storefront" size={48} color="#6b7280" />
+              <Text style={styles.bannerText}>Add Shop Image</Text>
+              <Text style={styles.bannerSubtext}>Upload your shop photo to attract more customers</Text>
+            </View>
+          )}
+          <View style={styles.bannerOverlay}>
+            <Text style={styles.bannerTitle}>{shopData?.shopName || 'Your Shop'}</Text>
+            <Text style={styles.bannerCategory}>{shopData?.category || 'Service Provider'}</Text>
+          </View>
+        </View>
+
+        {/* Timing Info Card */}
+        <TouchableOpacity style={styles.timingCard} onPress={() => setShowTimeModal(true)}>
+          <View style={styles.timingHeader}>
+            <Ionicons name="time-outline" size={24} color="#4f46e5" />
+            <Text style={styles.timingTitle}>Shop Timing</Text>
+            <Ionicons name="create-outline" size={20} color="#6b7280" />
+          </View>
+          <View style={styles.timingContent}>
+            {shopData?.timing ? (
+              <>
+                <Text style={styles.timingText}>
+                  Open: {shopData.timing.open || 'Not set'}
+                </Text>
+                <Text style={styles.timingText}>
+                  Close: {shopData.timing.close || 'Not set'}
+                </Text>
+                {shopData.timing.lastUpdated && (
+                  <Text style={styles.lastUpdated}>
+                    Last updated: {new Date(shopData.timing.lastUpdated).toLocaleDateString()}
+                  </Text>
+                )}
+              </>
+            ) : (
+              <Text style={styles.noTimingText}>Tap to set your shop timing</Text>
+            )}
+          </View>
+        </TouchableOpacity>
 
         {/* Stats Cards */}
         <View style={styles.statsSection}>
@@ -168,6 +460,16 @@ export default function AdminHomeScreen({ userData }) {
             
             <TouchableOpacity 
               style={styles.actionButton}
+              onPress={() => setShowTimeModal(true)}
+            >
+              <View style={styles.actionIconContainer}>
+                <Ionicons name="time" size={24} color="#ffffff" />
+              </View>
+              <Text style={styles.actionText}>Update Timing</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.actionButton}
               onPress={() => router.push('/(tabs)/profile')}
             >
               <View style={styles.actionIconContainer}>
@@ -178,180 +480,127 @@ export default function AdminHomeScreen({ userData }) {
           </View>
         </View>
       </ScrollView>
+
+      {/* Time Update Modal */}
+      <Modal
+        visible={showTimeModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowTimeModal(false);
+          setShowOpenTimePicker(false);
+          setShowCloseTimePicker(false);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Update Shop Timing</Text>
+              <TouchableOpacity onPress={() => {
+                setShowTimeModal(false);
+                setShowOpenTimePicker(false);
+                setShowCloseTimePicker(false);
+              }}>
+                <Ionicons name="close" size={24} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <View style={styles.checkboxContainer}>
+                <TouchableOpacity
+                  style={styles.checkbox}
+                  onPress={() => setNewTiming(prev => ({ ...prev, isOpen24Hours: !prev.isOpen24Hours }))}
+                >
+                  <Ionicons
+                    name={newTiming.isOpen24Hours ? "checkbox" : "square-outline"}
+                    size={24}
+                    color="#4f46e5"
+                  />
+                  <Text style={styles.checkboxLabel}>Open 24 Hours</Text>
+                </TouchableOpacity>
+              </View>
+
+              {!newTiming.isOpen24Hours && (
+                <>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Opening Time</Text>
+                    <TouchableOpacity
+                      style={styles.timePickerButton}
+                      onPress={() => setShowOpenTimePicker(true)}
+                    >
+                      <Ionicons name="time-outline" size={20} color="#6b7280" />
+                      <Text style={styles.timePickerText}>
+                        {newTiming.open || 'Select opening time'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Closing Time</Text>
+                    <TouchableOpacity
+                      style={styles.timePickerButton}
+                      onPress={() => setShowCloseTimePicker(true)}
+                    >
+                      <Ionicons name="time-outline" size={20} color="#6b7280" />
+                      <Text style={styles.timePickerText}>
+                        {newTiming.close || 'Select closing time'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+
+              {/* Time Pickers */}
+              {showOpenTimePicker && Platform.OS !== 'web' && (
+                <DateTimePicker
+                  value={openTime}
+                  mode="time"
+                  is24Hour={false}
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={handleOpenTimeChange}
+                />
+              )}
+
+              {showCloseTimePicker && Platform.OS !== 'web' && (
+                <DateTimePicker
+                  value={closeTime}
+                  mode="time"
+                  is24Hour={false}
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={handleCloseTimeChange}
+                />
+              )}
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={() => {
+                    setShowTimeModal(false);
+                    setShowOpenTimePicker(false);
+                    setShowCloseTimePicker(false);
+                  }}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={styles.saveButton}
+                  onPress={updateShopTiming}
+                  disabled={timeUpdating}
+                >
+                  {timeUpdating ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>Save</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#6b7280',
-  },
-  headerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-  },
-  headerContent: {
-    flex: 1,
-  },
-  welcomeText: {
-    fontSize: 14,
-    color: '#64748b',
-    marginBottom: 4,
-  },
-  shopName: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1e293b',
-  },
-  avatarContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#e0e7ff',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarPlaceholder: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#e0e7ff',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#4f46e5',
-  },
-  statsSection: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    gap: 12,
-    marginBottom: 16,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  statIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f1f5f9',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statContent: {},
-  statValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1e293b',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#64748b',
-    marginTop: 4,
-  },
-  infoCard: {
-    backgroundColor: '#ffffff',
-    marginHorizontal: 20,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  infoCardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1e293b',
-    marginBottom: 16,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 8,
-  },
-  infoValue: {
-    flex: 1,
-    fontSize: 14,
-    color: '#334155',
-  },
-  actionsSection: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1e293b',
-    marginBottom: 12,
-  },
-  actionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  actionButton: {
-    flex: 1,
-    backgroundColor: '#4f46e5',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    minWidth: '48%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  actionIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  actionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#ffffff',
-    textAlign: 'center',
-  },
-});
+

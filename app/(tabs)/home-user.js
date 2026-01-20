@@ -4,15 +4,15 @@ import { useRouter } from 'expo-router';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -39,8 +39,7 @@ export default function UserHomeScreen() {
         id: doc.id,
         ...doc.data(),
       }));
-      
-      // Filter shops with valid coordinates
+
       const shopsWithCoords = shopsData.filter(shop => 
         shop.location && shop.location.latitude && shop.location.longitude
       );

@@ -1,36 +1,65 @@
 import { Timestamp } from 'firebase/firestore';
 
 /**
- * Converts Firebase Timestamp objects to JavaScript Date objects
+ * Converts Firebase Timestamp objects to ISO strings
  * to make data serializable for Redux store
  */
 export function convertTimestamps(data) {
   if (!data) return data;
   
-  console.log('Converting data:', typeof data, Array.isArray(data));
-  
   // Handle arrays
   if (Array.isArray(data)) {
-    console.log('Converting array with', data.length, 'items');
     return data.map(item => convertTimestamps(item));
   }
   
+  // Handle Date objects (convert to ISO string)
+  if (data instanceof Date) {
+    return data.toISOString();
+  }
+  
+  // Handle Firebase Timestamps
+  if (data instanceof Timestamp) {
+    return data.toDate().toISOString();
+  }
+  
   // Handle objects
-  if (typeof data === 'object') {
-    console.log('Converting object with keys:', Object.keys(data));
+  if (typeof data === 'object' && data !== null) {
     const converted = {};
     for (const [key, value] of Object.entries(data)) {
-      if (value instanceof Timestamp) {
-        console.log('Converting timestamp for key:', key);
-        converted[key] = value.toDate();
-      } else {
-        converted[key] = convertTimestamps(value);
-      }
+      converted[key] = convertTimestamps(value);
     }
     return converted;
   }
   
   // Return primitive values as-is
-  console.log('Returning primitive value:', data);
+  return data;
+}
+
+/**
+ * Converts ISO date strings back to Date objects when needed
+ */
+export function parseTimestamps(data, timestampFields = ['createdAt', 'updatedAt', 'bookingDate']) {
+  if (!data) return data;
+  
+  // Handle arrays
+  if (Array.isArray(data)) {
+    return data.map(item => parseTimestamps(item, timestampFields));
+  }
+  
+  // Handle objects
+  if (typeof data === 'object' && data !== null) {
+    const parsed = { ...data };
+    for (const field of timestampFields) {
+      if (parsed[field] && typeof parsed[field] === 'string') {
+        try {
+          parsed[field] = new Date(parsed[field]);
+        } catch (error) {
+          console.warn(`Failed to parse timestamp field ${field}:`, error);
+        }
+      }
+    }
+    return parsed;
+  }
+  
   return data;
 }

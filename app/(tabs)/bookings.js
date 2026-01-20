@@ -2,13 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    RefreshControl,
-    StyleSheet,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
@@ -16,12 +16,12 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Button, Card, Input, Typography } from '../../src/components/ui';
 import { colors, spacing } from '../../src/constants/theme';
 import {
-    fetchShopkeeperBookings,
-    fetchUserBookings,
-    selectBookingsLoading,
-    selectShopkeeperBookings,
-    selectUserBookings,
-    updateBookingStatus
+  fetchShopkeeperBookings,
+  fetchUserBookings,
+  selectBookingsLoading,
+  selectShopkeeperBookings,
+  selectUserBookings,
+  updateBookingStatus
 } from '../../store/slices/bookingsSlice';
 
 const BookingsScreen = () => {
@@ -94,12 +94,12 @@ const BookingsScreen = () => {
   const getFilteredBookings = () => {
     let filtered = [...bookings];
 
-    // Filter by status
+
     if (activeFilter !== 'all') {
       filtered = filtered.filter(booking => booking.status === activeFilter);
     }
 
-    // Filter by search query
+ 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(booking =>
@@ -109,7 +109,6 @@ const BookingsScreen = () => {
       );
     }
 
-    // Sort by date (newest first)
     filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     return filtered;

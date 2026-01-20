@@ -15,7 +15,7 @@ import { db } from '../services/firebaseconfig';
 export default function UserProfileScreen() {
   const router = useRouter();
   const dispatch = useDispatch();
-  const { userData, userRole } = useUserRole();
+  const { userData, userRole, loading: roleLoading } = useUserRole();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     fullName: '',
@@ -24,6 +24,27 @@ export default function UserProfileScreen() {
     address: ''
   });
   const [loading, setLoading] = useState(false);
+
+  // Authentication guard
+  useEffect(() => {
+    if (!roleLoading) {
+      if (!userData?.uid) {
+        console.log('UserProfileScreen - No user data, redirecting to login');
+        router.replace('/auth/login');
+        return;
+      }
+      
+      if (userRole && userRole !== 'user') {
+        console.log('UserProfileScreen - Wrong role:', userRole, 'redirecting');
+        if (userRole === 'admin' || userRole === 'shopkeeper') {
+          router.replace('/(tabs)/_admin-home');
+        } else if (userRole === 'super-admin') {
+          router.replace('/(tabs)/_super-admin-home');
+        }
+        return;
+      }
+    }
+  }, [roleLoading, userData, userRole, router]);
 
   useEffect(() => {
     if (userData) {
@@ -83,6 +104,8 @@ export default function UserProfileScreen() {
               // Clear auth data from AsyncStorage
               await clearAuthData();
               dispatch(clearAuth());
+              
+              // Force navigation to login
               router.replace('/auth/login');
             } catch (error) {
               console.error('Logout error:', error);
@@ -208,51 +231,6 @@ export default function UserProfileScreen() {
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Ionicons name="log-out" size={20} color="#ef4444" />
             <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* TAB BAR */}
-        <View style={styles.tabBar}>
-          <TouchableOpacity 
-            style={styles.tabItem} 
-            onPress={() => {
-              router.push('/(user)/home');
-            }}
-          >
-            <Ionicons 
-              name={'home-outline'} 
-              size={24} 
-              color={'#9CA3AF'} 
-            />
-            <Text style={styles.tabTextInactive}>Home</Text>
-          </TouchableOpacity>
-              
-          <TouchableOpacity 
-            style={styles.tabItem} 
-            onPress={() => {
-              router.push('/(user)/bookings');
-            }}
-          >
-            <Ionicons 
-              name={'calendar-outline'} 
-              size={24} 
-              color={'#9CA3AF'} 
-            />
-            <Text style={styles.tabTextInactive}>Bookings</Text>
-          </TouchableOpacity>
-              
-          <TouchableOpacity 
-            style={styles.tabItem} 
-            onPress={() => {
-              router.push('/(user)/profile');
-            }}
-          >
-            <Ionicons 
-              name={'person'} 
-              size={24} 
-              color={'#4F46E5'} 
-            />
-            <Text style={styles.tabText}>Profile</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

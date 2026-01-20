@@ -1,160 +1,205 @@
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
-import { Tabs } from 'expo-router';
-import { useRef } from 'react';
-import { Animated, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Tabs, useRouter } from 'expo-router';
+import { useEffect } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useUserRole } from '../../hooks/useUserRole';
-
-function Icon({ name, focused, color }) {
-  return (
-    <View style={styles.iconContainer}>
-      <Ionicons name={name} size={focused ? 26 : 24} color={color} />
-    </View>
-  );
-}
+import ErrorBoundary from '../Components/ErrorBoundary';
 
 function CustomTabBar({ state, descriptors, navigation }) {
   const insets = useSafeAreaInsets();
-  // rotation anim per route key
-  const spinsRef = useRef(
-    state.routes.reduce((acc, r) => {
-      acc[r.key] = new Animated.Value(0);
-      return acc;
-    }, {})
-  );
 
-  const onPress = (route, idx, isFocused) => {
-    const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-    if (!isFocused && !event.defaultPrevented) {
-      // spin animation on press
-      const v = spinsRef.current[route.key];
-      v.setValue(0);
-      Animated.timing(v, { toValue: 1, duration: 350, useNativeDriver: true }).start();
-      navigation.navigate(route.name);
-    }
-  };
-
-  return (
-    <View pointerEvents="box-none" style={[styles.fabWrap, { paddingBottom: Math.max(insets.bottom, 12) } ]}>
-      <BlurView intensity={30} tint={Platform.OS === 'ios' ? 'systemMaterial' : 'light'} style={styles.tabContainer}>
-        {state.routes.map((route, index) => {
-          const { options } = descriptors[route.key];
-          // hide screens with href: null (expo-router)
-          if (options?.href === null) return null;
-          const label = options.tabBarLabel !== undefined ? options.tabBarLabel : options.title !== undefined ? options.title : route.name;
-          const isFocused = state.index === index;
-          const color = isFocused ? '#111827' : '#6b7280';
-          const spin = spinsRef.current[route.key]?.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) || '0deg';
-
-          const iconName =
-            route.name === 'home' ? (isFocused ? 'home' : 'home-outline') :
-            route.name === 'bookings' ? (isFocused ? 'calendar' : 'calendar-outline') :
-            route.name === 'profile' ? (isFocused ? 'person' : 'person-outline') :
-            'ellipse';
-
-          return (
-            <TouchableOpacity key={route.key} accessibilityRole="button" activeOpacity={0.9} onPress={() => onPress(route, index, isFocused)} style={styles.tabItem}>
-              <Animated.View style={[styles.pill, isFocused && styles.pillActive, { transform: [{ rotate: spin }] }] }>
-                <Ionicons name={iconName} size={isFocused ? 22 : 20} color={color} />
-              </Animated.View>
-              {options.tabBarShowLabel !== false && (
-                <TextLabel focused={isFocused} text={label} />
-              )}
-            </TouchableOpacity>
-          );
-        })}
-      </BlurView>
-    </View>
-  );
-}
-
-function TextLabel({ focused, text }) {
-  return (
-    <Animated.Text numberOfLines={1} style={[styles.label, { color: focused ? '#111827' : '#6b7280' }]}>
-      {text}
-    </Animated.Text>
-  );
-}
-
-export default function UserTabLayout() {
-  const { userRole } = useUserRole();
-
-  // Make sure this is only for user role
-  if (userRole !== 'user') {
-    // Redirect to appropriate role-based layout
+  // Safety check for state and descriptors
+  if (!state || !descriptors || !navigation) {
+    console.warn('CustomTabBar: Missing required props');
     return null;
   }
 
-  const commonScreenOptions = {
-    headerShown: false,
-    tabBarShowLabel: true,
-    // For user role, hide native tab bar (we'll render a custom one inside user screens)
-    tabBarStyle: { display: 'none' },
-  };
+  if (!state.routes || state.routes.length === 0) {
+    console.warn('CustomTabBar: No routes available');
+    return null;
+  }
+
+  try {
+    return (
+      <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        {state.routes.map((route, index) => {
+          if (!route || !route.key) {
+            console.warn('CustomTabBar: Invalid route at index', index);
+            return null;
+          }
+
+          const { options } = descriptors[route.key] || {};
+          if (!options) {
+            console.warn('CustomTabBar: No options for route', route.key);
+            return null;
+          }
+
+          const label = options.tabBarLabel !== undefined ? options.tabBarLabel : options.title !== undefined ? options.title : route.name;
+          const isFocused = state.index === index;
+
+          const onPress = () => {
+            try {
+              const event = navigation.emit({
+                type: 'tabPress',
+                target: route.key,
+                canPreventDefault: true,
+              });
+
+              if (!isFocused && !event.defaultPrevented) {
+                navigation.navigate(route.name);
+              }
+            } catch (error) {
+              console.error('Error in tab press:', error);
+            }
+          };
+
+          const getIconName = (routeName, focused) => {
+            switch (routeName) {
+              case 'home':
+                return focused ? 'home' : 'home-outline';
+              case 'bookings':
+                return focused ? 'calendar' : 'calendar-outline';
+              case 'profile':
+                return focused ? 'person' : 'person-outline';
+              default:
+                return 'ellipse-outline';
+            }
+          };
+
+          return (
+            <TouchableOpacity key={route.key} style={styles.tabItem} onPress={onPress}>
+              <View style={[styles.tabButton, isFocused && styles.tabButtonActive]}>
+                <Ionicons
+                  name={getIconName(route.name, isFocused)}
+                  size={isFocused ? 24 : 22}
+                  color={isFocused ? '#4F46E5' : '#9CA3AF'}
+                />
+              </View>
+              <Text style={[styles.tabLabel, { color: isFocused ? '#4F46E5' : '#9CA3AF' }]}>
+                {label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+  } catch (error) {
+    console.error('Error rendering CustomTabBar:', error);
+    return null;
+  }
+}
+
+export default function UserTabLayout() {
+  const router = useRouter();
+  const { userRole, loading, userData } = useUserRole();
+
+  // Enhanced authentication check
+  useEffect(() => {
+    if (!loading) {
+      console.log('UserTabLayout - Auth check:', { 
+        userRole, 
+        hasUserData: !!userData,
+        uid: userData?.uid,
+        isAuthenticated: !!userData?.uid 
+      });
+      
+      // Strict authentication check - must have userData with uid
+      if (!userData?.uid) {
+        console.log('No authenticated user - redirecting to login');
+        router.replace('/auth/login');
+        return;
+      }
+      
+      // Role-based redirect for non-users
+      if (userRole && userRole !== 'user') {
+        console.log('Wrong role for user layout - redirecting based on role:', userRole);
+        if (userRole === 'admin' || userRole === 'shopkeeper') {
+          router.replace('/(tabs)/_admin-home');
+        } else if (userRole === 'super-admin') {
+          router.replace('/(tabs)/_super-admin-home');
+        }
+        return;
+      }
+    }
+  }, [loading, userData, userRole, router]);
+
+  // Show nothing while loading or if no authenticated user
+  if (loading || !userData?.uid) {
+    return null;
+  }
+
+  // Don't render if wrong role
+  if (userRole && userRole !== 'user') {
+    return null;
+  }
 
   return (
-    <Tabs screenOptions={commonScreenOptions}>
-      {/* USER SCREENS - Will render custom tab bar inside each screen */}
-      <Tabs.Screen name="home" options={{ title: 'Home' }} />
-      <Tabs.Screen name="bookings" options={{ title: 'Bookings' }} />
-      <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
-    </Tabs>
+    <ErrorBoundary>
+      <Tabs
+        tabBar={(props) => <CustomTabBar {...props} />}
+        screenOptions={{
+          headerShown: false,
+        }}
+      >
+        <Tabs.Screen 
+          name="home" 
+          options={{ 
+            title: 'Home',
+            tabBarLabel: 'Home'
+          }} 
+        />
+        <Tabs.Screen 
+          name="bookings" 
+          options={{ 
+            title: 'Bookings',
+            tabBarLabel: 'Bookings'
+          }} 
+        />
+        <Tabs.Screen 
+          name="profile" 
+          options={{ 
+            title: 'Profile',
+            tabBarLabel: 'Profile'
+          }} 
+        />
+      </Tabs>
+    </ErrorBoundary>
   );
 }
 
 const styles = StyleSheet.create({
-  iconContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 42,
-    width: 42,
-  },
-  fabWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-  },
-  tabContainer: {
+  tabBar: {
     flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.6)',
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 8,
   },
   tabItem: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 60,
   },
-  pill: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.8)',
+  tabButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    marginBottom: 4,
   },
-  pillActive: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+  tabButtonActive: {
+    backgroundColor: '#EEF2FF',
   },
-  label: {
-    marginTop: 4,
-    fontSize: 11,
-    fontWeight: '700',
+  tabLabel: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

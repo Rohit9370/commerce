@@ -22,7 +22,7 @@ export default function NotificationsScreen() {
     let unsubscribe;
     
     if (userRole === 'admin' || userRole === 'shopkeeper') {
-      // For service providers, listen to new booking requests
+    
       const q = query(
         collection(db, 'bookings'),
         where('shopId', '==', uid),
@@ -58,7 +58,7 @@ export default function NotificationsScreen() {
         setLoading(false);
       });
     } else {
-      // For regular users, we can show their booking status updates
+ 
       const q = query(
         collection(db, 'bookings'),
         where('userId', '==', uid)

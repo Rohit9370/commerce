@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     ScrollView,
     StyleSheet,
@@ -15,7 +16,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { useUserRole } from '../../hooks/useUserRole';
 import { selectAuth } from '../../store';
-import { createBooking } from '../../store/slices/bookingsSlice';
 import { db } from '../services/firebaseconfig';
 
 export default function ServiceDetailScreen() {
@@ -23,9 +23,6 @@ export default function ServiceDetailScreen() {
   const params = useLocalSearchParams(); // Get all params
   const { id } = params; // Get the id from route params
   
-  console.log('ServiceDetailScreen rendered with params:', params);
-  console.log('ServiceDetailScreen rendered with id:', id);
-  console.log('Type of id:', typeof id);
   const dispatch = useDispatch();
   const { userData: user } = useUserRole();
   const { uid: userId } = useSelector(selectAuth);
@@ -35,113 +32,87 @@ export default function ServiceDetailScreen() {
   const [bookingLoading, setBookingLoading] = useState(false);
 
   useEffect(() => {
-    console.log('ServiceDetailScreen useEffect - id:', id);
-    console.log('ServiceDetailScreen useEffect - id type:', typeof id);
     if (id && id !== 'undefined') {
       fetchShopDetails();
     } else {
-      console.error('Invalid or missing service ID:', id);
       setLoading(false);
     }
   }, [id]);
 
   const fetchShopDetails = async () => {
     if (!id || id === 'undefined') {
-      console.error('Service ID is missing or invalid:', id);
       setLoading(false);
       return;
     }
-    
-    console.log('Fetching service details for ID:', id);
-    console.log('User role:', user?.role);
-    console.log('User ID:', userId);
     
     try {
       const docRef = doc(db, 'users', id);
       const docSnap = await getDoc(docRef);
       
-      console.log('Document exists:', docSnap.exists());
-      
       if (docSnap.exists()) {
         const data = docSnap.data();
-        console.log('Service data:', data);
         setShopData(data);
       } else {
-        console.log('No document found for ID:', id);
         Alert.alert('Error', 'Service not found');
       }
     } catch (error) {
-      console.error('Error fetching shop details:', error);
       Alert.alert('Error', `Failed to load shop details: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleBookService = async () => {
+  const handleBookService = () => {
     if (!userId) {
       Alert.alert('Error', 'Please log in to book a service');
       return;
     }
 
-    try {
-      setBookingLoading(true);
-      
-      // Prepare booking data
-      const bookingData = {
-        userId: userId,
-        userName: user?.fullName || 'User',
-        shopId: id,
-        shopName: shopData?.shopName || 'Unknown Shop',
-        serviceName: shopData?.category || 'Service',
-        bookingDate: new Date(),
-        bookingTime: new Date().toLocaleTimeString(),
-        status: 'pending', // Default status
-        price: shopData?.price || 0,
-      };
-      
-      console.log('Creating booking with data:', bookingData);
-
-      // Create booking using Redux action
-      const result = await dispatch(createBooking(bookingData));
-      
-      if (result.meta.requestStatus === 'fulfilled') {
-        Alert.alert(
-          'Booking Request Sent!',
-          'Your booking request has been sent to the service provider. They will accept or reject your request.',
-          [
-            {
-              text: 'OK',
-              onPress: () => router.push('/(tabs)/bookings')
-            }
-          ]
-        );
-      } else {
-        Alert.alert('Error', 'Failed to book service. Please try again.');
-      }
-    } catch (error) {
-      console.error('Error booking service:', error);
-      Alert.alert('Error', 'Failed to book service. Please try again.');
-    } finally {
-      setBookingLoading(false);
+    if (!id || id === 'undefined') {
+      Alert.alert('Error', 'Invalid service ID');
+      return;
     }
+
+    if (!shopData) {
+      Alert.alert('Error', 'Service information not loaded');
+      return;
+    }
+
+    // Navigate to booking screen with proper parameters
+    router.push({
+      pathname: '/bookings/new',
+      params: {
+        serviceId: id,
+        serviceName: encodeURIComponent(shopData?.category || 'Service'),
+        shopId: id,
+        shopName: encodeURIComponent(shopData?.shopName || shopData?.fullName || 'Unknown Shop'),
+      }
+    });
   };
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text>Loading service details...</Text>
+          <ActivityIndicator size="large" color="#4F46E5" />
+          <Text style={styles.loadingText}>Loading service details...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  if (!id) {
+  if (!id || id === 'undefined') {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text>Error: Service ID not provided</Text>
+          <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
+          <Text style={styles.errorText}>Error: Service ID not provided</Text>
+          <TouchableOpacity 
+            style={styles.retryButton} 
+            onPress={() => router.back()}
+          >
+            <Text style={styles.retryButtonText}>Go Back</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -151,7 +122,15 @@ export default function ServiceDetailScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text>Service not found</Text>
+          <Ionicons name="storefront-outline" size={48} color="#64748b" />
+          <Text style={styles.errorText}>Service not found</Text>
+          <Text style={styles.errorSubText}>This service may no longer be available</Text>
+          <TouchableOpacity 
+            style={styles.retryButton} 
+            onPress={() => router.back()}
+          >
+            <Text style={styles.retryButtonText}>Go Back</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -198,15 +177,20 @@ export default function ServiceDetailScreen() {
           {/* Services offered */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Services Offered</Text>
-            {shopData.services && shopData.services.length > 0 ? (
+            {shopData.services && Array.isArray(shopData.services) && shopData.services.length > 0 ? (
               shopData.services.map((service, index) => (
                 <View key={index} style={styles.serviceItem}>
-                  <Text style={styles.serviceName}>{service.name}</Text>
-                  <Text style={styles.servicePrice}>{service.price}</Text>
+                  <View style={styles.serviceInfo}>
+                    <Text style={styles.serviceName}>{service.name || 'Service'}</Text>
+                    {service.description && (
+                      <Text style={styles.serviceDescription}>{service.description}</Text>
+                    )}
+                  </View>
+                  <Text style={styles.servicePrice}>{service.price || 'Price on request'}</Text>
                 </View>
               ))
             ) : (
-              <Text>No services listed</Text>
+              <Text style={styles.noServicesText}>No services listed</Text>
             )}
           </View>
 
@@ -224,7 +208,9 @@ export default function ServiceDetailScreen() {
           {shopData.offDays && shopData.offDays.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Closed Days</Text>
-              <Text style={styles.offDaysText}>{shopData.offDays.join(', ')}</Text>
+              <Text style={styles.offDaysText}>
+                {Array.isArray(shopData.offDays) ? shopData.offDays.join(', ') : shopData.offDays}
+              </Text>
             </View>
           )}
 
@@ -250,17 +236,8 @@ export default function ServiceDetailScreen() {
           onPress={handleBookService}
           disabled={bookingLoading}
         >
-          {bookingLoading ? (
-            <>
-              <Ionicons name="time-outline" size={20} color="#ffffff" />
-              <Text style={styles.bookButtonText}>Sending Request...</Text>
-            </>
-          ) : (
-            <>
-              <Ionicons name="calendar-outline" size={20} color="#ffffff" />
-              <Text style={styles.bookButtonText}>Book Now</Text>
-            </>
-          )}
+          <Ionicons name="calendar-outline" size={20} color="#ffffff" />
+          <Text style={styles.bookButtonText}>Book Now</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -276,6 +253,38 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  errorText: {
+    marginTop: 16,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+    textAlign: 'center',
+  },
+  errorSubText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 24,
+    backgroundColor: '#4f46e5',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   header: {
     flexDirection: 'row',
@@ -349,17 +358,37 @@ const styles = StyleSheet.create({
   serviceItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  serviceInfo: {
+    flex: 1,
+    marginRight: 12,
   },
   serviceName: {
     fontSize: 16,
-    color: '#334155',
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  serviceDescription: {
+    fontSize: 14,
+    color: '#64748b',
+    lineHeight: 20,
   },
   servicePrice: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#4f46e5',
+  },
+  noServicesText: {
+    fontSize: 14,
+    color: '#64748b',
+    fontStyle: 'italic',
   },
   timingText: {
     fontSize: 16,

@@ -1,8 +1,8 @@
-import { Text, View, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useState, useEffect } from 'react';
 import { collection, getDocs, query } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { db } from '../services/firebaseconfig';
 
 export default function SuperAdminHomeScreen() {
@@ -17,11 +17,11 @@ export default function SuperAdminHomeScreen() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        // Fetch total users
+ 
         const usersSnapshot = await getDocs(collection(db, 'users'));
         const totalUsers = usersSnapshot.size;
         
-        // Count shops (users with role 'admin' or 'shopkeeper')
+
         const shopsSnapshot = await getDocs(
           query(collection(db, 'users'))
         );
@@ -36,7 +36,7 @@ export default function SuperAdminHomeScreen() {
         setStats({
           totalUsers,
           totalShops: shopsData.length,
-          totalBookings: 0, // You can add bookings collection later
+          totalBookings: 0, 
         });
       } catch (error) {
         console.error('Error fetching stats:', error);
@@ -199,8 +199,7 @@ const styles = StyleSheet.create({
   actionIcon: {
     fontSize: 32,
   },
-  
-  // Text Styles
+
   titleText: {
     fontSize: 24,
     fontWeight: 'bold',

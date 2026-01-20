@@ -1,0 +1,17 @@
+console.log('🔧 Firebase Index Setup Required');
+console.log('');
+console.log('❌ The booking query requires a Firebase index to be created.');
+console.log('');
+console.log('📋 Required Index:');
+console.log('   Collection: bookings');
+console.log('   Fields:');
+console.log('   - userId (Ascending)');
+console.log('   - createdAt (Descending)');
+console.log('   - __name__ (Ascending)');
+console.log('');
+console.log('🌐 Create the index here:');
+console.log('https://console.firebase.google.com/v1/r/project/serviceprovider-33f80/firestore/indexes?create_composite=ClZwcm9qZWN0cy9zZXJ2aWNlcHJvdmlkZXItMzNmODAvZGF0YWJhc2VzLyhkZWZhdWx0KS9jb2xsZWN0aW9uR3JvdXBzL2Jvb2tpbmdzL2luZGV4ZXMvXxABGgoKBnVzZXJJZBABGg0KCWNyZWF0ZWRBdBACGgwKCF9fbmFtZV9fEAI');
+console.log('');
+console.log('⏱️  Index creation takes 2-5 minutes to complete.');
+console.log('✅ Once created, the booking loading error will be resolved.');
+console.log('');

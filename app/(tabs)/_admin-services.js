@@ -19,7 +19,7 @@ export default function AdminServicesScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Load services from user data
+
     if (userData && userData.services) {
       setServices(userData.services);
     }
@@ -33,12 +33,12 @@ export default function AdminServicesScreen() {
     }
     
     try {
-      // Add service to Firestore
+
       if (uid) {
         const userDocRef = doc(db, 'users', uid);
         await updateDoc(userDocRef, {
           services: arrayUnion({
-            id: Date.now(), // Using timestamp as ID
+            id: Date.now(),
             name: newService.name,
             price: newService.price,
             description: newService.description,
@@ -47,7 +47,7 @@ export default function AdminServicesScreen() {
           })
         });
         
-        // Update local state
+     
         const newServiceObj = {
           id: Date.now(),
           name: newService.name,
@@ -79,8 +79,7 @@ export default function AdminServicesScreen() {
             ...updatedServices[serviceIndex],
             active: !updatedServices[serviceIndex].active
           };
-          
-          // Update Firestore
+        
           await updateDoc(userDocRef, {
             services: updatedServices
           });

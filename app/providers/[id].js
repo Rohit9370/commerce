@@ -1,11 +1,10 @@
-import { View, Text, TouchableOpacity, ScrollView, Image, FlatList } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { FlatList, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 export default function ServiceProviderScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
   
-  // Sample provider data - in a real app this would come from your API
   const providerData = {
     id: 1,
     name: 'John\'s Plumbing Experts',

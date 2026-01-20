@@ -2,32 +2,52 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUserRole } from '../../hooks/useUserRole';
 import { db } from '../services/firebaseconfig';
 
-export default function UserBookingsScreen() {
+export default function BookingsIndexScreen() {
   const router = useRouter();
-  const { userData, userRole } = useUserRole();
+  const { userData, userRole, loading: roleLoading } = useUserRole();
   const [bookings, setBookings] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [hasAttemptedFetch, setHasAttemptedFetch] = useState(false);
+  const [waitingForUser, setWaitingForUser] = useState(true);
+
+  // Add a delay to wait for user data to load from cache/Firebase
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setWaitingForUser(false);
+    }, 3000); // Wait 3 seconds for user data to load
+
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
-    // Only fetch when we have user data and haven't attempted yet
-    if (userData?.uid && !hasAttemptedFetch) {
-      console.log('Fetching user bookings for:', userData.uid);
+    console.log('BookingsIndex - Effect triggered:', {
+      roleLoading,
+      userRole,
+      userDataUid: userData?.uid,
+      hasAttemptedFetch,
+      waitingForUser
+    });
+    
+    // Only fetch when we have complete user data and haven't attempted yet
+    if (!roleLoading && userRole && userData?.uid && !hasAttemptedFetch) {
+      console.log('Fetching bookings for user:', userData.uid, 'role:', userRole);
       setHasAttemptedFetch(true);
+      setWaitingForUser(false);
       fetchBookings();
-    } else if (!userData?.uid && !hasAttemptedFetch) {
-      console.log('No user data for bookings');
+    } else if (!roleLoading && !userData?.uid && !hasAttemptedFetch && !waitingForUser) {
+      // If no user data after loading is complete and we've waited, stop loading
+      console.log('No user data found after waiting, showing empty state');
       setHasAttemptedFetch(true);
       setLoading(false);
       setBookings([]);
     }
-  }, [userData?.uid, hasAttemptedFetch]);
+  }, [roleLoading, userRole, userData?.uid, hasAttemptedFetch, waitingForUser]);
 
   const fetchBookings = async () => {
     if (!userData?.uid) {
@@ -41,21 +61,35 @@ export default function UserBookingsScreen() {
     
     // Add timeout to prevent infinite loading
     const timeoutId = setTimeout(() => {
-      console.log('User bookings fetch timeout - showing empty state');
+      console.log('Booking fetch timeout - showing empty state');
       setLoading(false);
       setRefreshing(false);
       setBookings([]);
     }, 8000); // 8 second timeout
     
     try {
-      // Simple query without orderBy to avoid index requirement
-      // We'll sort in JavaScript instead
-      const q = query(
-        collection(db, 'bookings'), 
-        where('userId', '==', userData.uid)
-      );
+      let querySnapshot;
       
-      const querySnapshot = await getDocs(q);
+      if (userRole === 'user') {
+        // For users, show their bookings
+        const q = query(
+          collection(db, 'bookings'), 
+          where('userId', '==', userData.uid)
+        );
+        querySnapshot = await getDocs(q);
+      } else if (userRole === 'admin' || userRole === 'shopkeeper') {
+        // For admins/shopkeepers, show bookings for their services
+        const q = query(
+          collection(db, 'bookings'), 
+          where('providerId', '==', userData.uid)
+        );
+        querySnapshot = await getDocs(q);
+      } else {
+        // For super-admin, show all bookings
+        const q = query(collection(db, 'bookings'));
+        querySnapshot = await getDocs(q);
+      }
+      
       clearTimeout(timeoutId); // Clear timeout if successful
       
       const bookingsData = [];
@@ -63,37 +97,26 @@ export default function UserBookingsScreen() {
         querySnapshot.forEach((doc) => {
           const data = doc.data();
           if (data && doc.id) {
-            // Ensure all data is serializable and safe for React rendering
-            const safeData = {
+            bookingsData.push({
               id: doc.id,
-              serviceName: typeof data.serviceName === 'string' ? data.serviceName : 'Service',
-              userName: typeof data.userName === 'string' ? data.userName : 'Provider',
-              status: typeof data.status === 'string' ? data.status : 'pending',
-              bookingDate: data.bookingDate || null,
-              bookingTime: data.bookingTime || null,
-              createdAt: data.createdAt || null,
-              // Add other safe fields as needed
-              userId: data.userId,
-              serviceId: data.serviceId,
-              providerId: data.providerId,
-            };
-            bookingsData.push(safeData);
+              ...data
+            });
           }
         });
       }
       
-      // Sort by creation date in JavaScript
+      // Sort by creation date (newest first)
       bookingsData.sort((a, b) => {
         if (a.createdAt && b.createdAt) {
           const aTime = a.createdAt.seconds || 0;
           const bTime = b.createdAt.seconds || 0;
-          return bTime - aTime; // Newest first
+          return bTime - aTime;
         }
         return 0;
       });
       
       setBookings(bookingsData);
-      console.log(`Loaded ${bookingsData.length} user bookings`);
+      console.log(`Loaded ${bookingsData.length} bookings for ${userRole}`);
     } catch (error) {
       clearTimeout(timeoutId); // Clear timeout on error
       console.error('Error fetching bookings:', error);
@@ -106,8 +129,8 @@ export default function UserBookingsScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
-    setHasAttemptedFetch(false); // Reset attempt flag
-    if (userData?.uid) {
+    setHasAttemptedFetch(false); // Reset attempt flag to allow refetch
+    if (userData?.uid && userRole) {
       fetchBookings();
     } else {
       setRefreshing(false);
@@ -116,15 +139,7 @@ export default function UserBookingsScreen() {
   };
 
   const BookingCard = ({ item }) => {
-    // Ensure item exists and has required properties
-    if (!item || !item.id) {
-      return null;
-    }
-
-    const isConfirmed = item.status === 'confirmed';
-    const isCompleted = item.status === 'completed';
-    const isCancelled = item.status === 'cancelled';
-    const isPending = item.status === 'pending';
+    if (!item || !item.id) return null;
 
     const getStatusColor = (status) => {
       switch(status) {
@@ -146,56 +161,10 @@ export default function UserBookingsScreen() {
       }
     };
 
-    // Safely get display values with proper date formatting
     const serviceName = item.serviceName || 'Service';
-    const userName = item.userName || 'Provider';
-    
-    // Handle date formatting - convert Firestore timestamp to readable format
-    let bookingDate = 'Date not set';
-    let bookingTime = 'Time not set';
-    
-    if (item.bookingDate) {
-      try {
-        if (typeof item.bookingDate === 'string') {
-          bookingDate = item.bookingDate;
-        } else if (item.bookingDate.seconds) {
-          // Firestore timestamp
-          const date = new Date(item.bookingDate.seconds * 1000);
-          bookingDate = date.toLocaleDateString();
-        } else if (item.bookingDate.toDate && typeof item.bookingDate.toDate === 'function') {
-          // Firestore timestamp with toDate method
-          bookingDate = item.bookingDate.toDate().toLocaleDateString();
-        } else {
-          // Fallback for any other format
-          bookingDate = 'Date not set';
-        }
-      } catch (error) {
-        console.warn('Error formatting booking date:', error);
-        bookingDate = 'Date not set';
-      }
-    }
-    
-    if (item.bookingTime) {
-      try {
-        if (typeof item.bookingTime === 'string') {
-          bookingTime = item.bookingTime;
-        } else if (item.bookingTime.seconds) {
-          // Firestore timestamp
-          const date = new Date(item.bookingTime.seconds * 1000);
-          bookingTime = date.toLocaleTimeString();
-        } else if (item.bookingTime.toDate && typeof item.bookingTime.toDate === 'function') {
-          // Firestore timestamp with toDate method
-          bookingTime = item.bookingTime.toDate().toLocaleTimeString();
-        } else {
-          // Fallback for any other format
-          bookingTime = 'Time not set';
-        }
-      } catch (error) {
-        console.warn('Error formatting booking time:', error);
-        bookingTime = 'Time not set';
-      }
-    }
-    
+    const displayName = userRole === 'user' ? (item.providerName || 'Provider') : (item.userName || 'Customer');
+    const bookingDate = item.bookingDate || 'Date not set';
+    const bookingTime = item.bookingTime || 'Time not set';
     const status = item.status || 'pending';
 
     return (
@@ -210,7 +179,7 @@ export default function UserBookingsScreen() {
             </View>
             <View style={{ marginLeft: 12 }}>
               <Text style={styles.mainTitle}>{serviceName}</Text>
-              <Text style={styles.serviceProvider}>{userName}</Text>
+              <Text style={styles.serviceProvider}>{displayName}</Text>
             </View>
           </View>
         </View>
@@ -228,20 +197,13 @@ export default function UserBookingsScreen() {
           </View>
         </View>
 
-        {/* Status Chip */}
-        <View style={[
-          styles.statusChip, 
-          isConfirmed ? styles.chipConfirmed : isCompleted ? styles.chipCompleted : isCancelled ? styles.chipCancelled : styles.chipPending
-        ]}>
+        <View style={[styles.statusChip, { backgroundColor: `${getStatusColor(status)}20` }]}>
           <Ionicons 
             name={getStatusIcon(status)} 
             size={14} 
             color={getStatusColor(status)} 
           />
-          <Text style={[
-            styles.statusText, 
-            { color: getStatusColor(status) }
-          ]}>
+          <Text style={[styles.statusText, { color: getStatusColor(status) }]}>
             {status.charAt(0).toUpperCase() + status.slice(1)}
           </Text>
         </View>
@@ -249,12 +211,30 @@ export default function UserBookingsScreen() {
     );
   };
 
-  if (loading) {
+  if (roleLoading || waitingForUser) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <Ionicons name="time" size={60} color="#CBD5E1" />
-          <Text style={styles.loadingText}>Loading bookings...</Text>
+        <View style={styles.loader}>
+          <ActivityIndicator size="large" color="#4F46E5" />
+          <Text style={styles.loadingText}>
+            {roleLoading ? 'Initializing...' : 'Loading user data...'}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Show empty state immediately if no user data
+  if (!userData?.uid) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Bookings</Text>
+          <Text style={styles.headerSub}>No user data available</Text>
+        </View>
+        <View style={styles.emptyContainer}>
+          <Ionicons name="person-outline" size={60} color="#CBD5E1" />
+          <Text style={styles.emptyText}>Please log in to view bookings</Text>
         </View>
       </SafeAreaView>
     );
@@ -263,12 +243,21 @@ export default function UserBookingsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Bookings</Text>
-        <Text style={styles.headerSub}>Track your service history</Text>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>
+            {userRole === 'user' ? 'My Bookings' : 'Booking Requests'}
+          </Text>
+          <Text style={styles.headerSub}>
+            {userRole === 'user' ? 'Track your service history' : 'Manage customer bookings'}
+          </Text>
+        </View>
+        {loading && (
+          <ActivityIndicator size="small" color="#4F46E5" />
+        )}
       </View>
 
       <FlatList
-        data={bookings.filter(item => item && item.id)} // Filter out invalid items
+        data={bookings}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <BookingCard item={item} />}
         contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
@@ -277,7 +266,21 @@ export default function UserBookingsScreen() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="calendar-outline" size={60} color="#CBD5E1" />
-            <Text style={styles.emptyText}>No bookings found</Text>
+            <Text style={styles.emptyText}>
+              {loading ? 'Loading bookings...' : 'No bookings found'}
+            </Text>
+            {!loading && userData?.uid && (
+              <TouchableOpacity 
+                style={styles.retryButton} 
+                onPress={() => {
+                  setHasAttemptedFetch(false);
+                  fetchBookings();
+                }}
+              >
+                <Ionicons name="refresh" size={16} color="#4F46E5" />
+                <Text style={styles.retryText}>Retry</Text>
+              </TouchableOpacity>
+            )}
           </View>
         }
       />
@@ -290,21 +293,28 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
-  loadingContainer: {
+  loader: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   loadingText: {
     marginTop: 12,
-    fontSize: 16,
-    color: '#6B7280',
+    fontSize: 14,
+    color: '#6b7280',
+    fontWeight: '500',
   },
   header: {
     backgroundColor: '#FFF',
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerContent: {
+    flex: 1,
   },
   headerTitle: {
     fontSize: 24,
@@ -381,18 +391,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
   },
-  chipConfirmed: {
-    backgroundColor: '#ECFDF5',
-  },
-  chipCompleted: {
-    backgroundColor: '#DBEAFE',
-  },
-  chipCancelled: {
-    backgroundColor: '#FEF2F2',
-  },
-  chipPending: {
-    backgroundColor: '#FFFBEB',
-  },
   statusText: {
     fontSize: 12,
     fontWeight: '600',
@@ -408,5 +406,20 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: '#6B7280',
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 16,
+  },
+  retryText: {
+    fontSize: 14,
+    color: '#4F46E5',
+    fontWeight: '600',
+    marginLeft: 6,
   },
 });

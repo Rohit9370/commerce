@@ -1,24 +1,24 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
-    collection,
-    doc,
-    getDoc,
-    getDocs,
-    orderBy,
-    query,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
 } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
 import { selectAuth } from "../../store";
 import { db } from "../services/firebaseconfig";
@@ -49,7 +49,7 @@ export default function ChatScreen() {
         setBooking({ id: bookingSnap.id, ...bookingSnap.data() });
       }
 
-      // Fetch chat messages
+   
       const messagesQuery = query(
         collection(db, "bookings", bookingId, "messages"),
         orderBy("timestamp", "asc"),
@@ -72,14 +72,13 @@ export default function ChatScreen() {
 
     try {
       setSending(true);
-      // TODO: Implement message sending to Firestore
-      // For now, just add to local state
+te
       const newMessage = {
         id: Date.now().toString(),
         text: messageText,
         senderId: currentUserId,
         timestamp: new Date(),
-        senderRole: "shopkeeper", // This should come from auth
+        senderRole: "shopkeeper",
       };
       setMessages([...messages, newMessage]);
       setMessageText("");
@@ -143,70 +142,79 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={24} color="#111827" />
-        </TouchableOpacity>
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>{booking?.userName || "Chat"}</Text>
-          <Text style={styles.headerSubtitle}>
-            {booking?.serviceName || "Service Booking"}
-          </Text>
-        </View>
-        <View style={styles.headerPlaceholder} />
-      </View>
-
-      {/* Chat Status Info */}
-      {booking?.status === "accepted" && (
-        <View style={styles.statusBanner}>
-          <Ionicons name="checkmark-circle" size={18} color="#10b981" />
-          <Text style={styles.statusText}>Chat enabled for this booking</Text>
-        </View>
-      )}
-
-      {booking?.status !== "accepted" && (
-        <View style={styles.disabledBanner}>
-          <Ionicons name="lock-closed" size={18} color="#6b7280" />
-          <Text style={styles.disabledText}>
-            Chat will be enabled after booking acceptance
-          </Text>
-        </View>
-      )}
-
-      {/* Messages List */}
-      <FlatList
-        data={messages}
-        renderItem={renderMessage}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.messagesList}
-        showsVerticalScrollIndicator={false}
-      />
-
-      {/* Input Area - Only show if accepted */}
-      {booking?.status === "accepted" && (
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="Type a message..."
-            value={messageText}
-            onChangeText={setMessageText}
-            editable={!sending}
-            placeholderTextColor="#9ca3af"
-          />
-          <TouchableOpacity
-            style={[styles.sendButton, sending && styles.sendButtonDisabled]}
-            onPress={sendMessage}
-            disabled={sending || !messageText.trim()}
-          >
-            <Ionicons
-              name="send"
-              size={20}
-              color={sending || !messageText.trim() ? "#d1d5db" : "#ffffff"}
-            />
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+        style={styles.keyboardAvoidingView}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Ionicons name="chevron-back" size={24} color="#111827" />
           </TouchableOpacity>
+          <View style={styles.headerInfo}>
+            <Text style={styles.headerTitle}>{booking?.userName || "Chat"}</Text>
+            <Text style={styles.headerSubtitle}>
+              {booking?.serviceName || "Service Booking"}
+            </Text>
+          </View>
+          <View style={styles.headerPlaceholder} />
         </View>
-      )}
+
+        {/* Chat Status Info */}
+        {booking?.status === "accepted" && (
+          <View style={styles.statusBanner}>
+            <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+            <Text style={styles.statusText}>Chat enabled for this booking</Text>
+          </View>
+        )}
+
+        {booking?.status !== "accepted" && (
+          <View style={styles.disabledBanner}>
+            <Ionicons name="lock-closed" size={18} color="#6b7280" />
+            <Text style={styles.disabledText}>
+              Chat will be enabled after booking acceptance
+            </Text>
+          </View>
+        )}
+
+        {/* Messages List */}
+        <FlatList
+          data={messages}
+          renderItem={renderMessage}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.messagesList}
+          showsVerticalScrollIndicator={false}
+          style={styles.messagesContainer}
+        />
+
+        {/* Input Area - Only show if accepted */}
+        {booking?.status === "accepted" && (
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Type a message..."
+              value={messageText}
+              onChangeText={setMessageText}
+              editable={!sending}
+              placeholderTextColor="#9ca3af"
+              multiline
+              maxLength={500}
+            />
+            <TouchableOpacity
+              style={[styles.sendButton, sending && styles.sendButtonDisabled]}
+              onPress={sendMessage}
+              disabled={sending || !messageText.trim()}
+            >
+              <Ionicons
+                name="send"
+                size={20}
+                color={sending || !messageText.trim() ? "#d1d5db" : "#ffffff"}
+              />
+            </TouchableOpacity>
+          </View>
+        )}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -215,6 +223,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f9fafb",
+  },
+  keyboardAvoidingView: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,
@@ -274,9 +285,13 @@ const styles = StyleSheet.create({
     color: "#6b7280",
     fontWeight: "500",
   },
+  messagesContainer: {
+    flex: 1,
+  },
   messagesList: {
     paddingHorizontal: 16,
     paddingVertical: 12,
+    flexGrow: 1,
   },
   messageContainer: {
     marginBottom: 12,
@@ -304,6 +319,7 @@ const styles = StyleSheet.create({
   },
   messageText: {
     fontSize: 14,
+    lineHeight: 20,
   },
   sentText: {
     color: "white",
@@ -330,6 +346,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#e5e7eb",
     gap: 8,
+    minHeight: 64,
   },
   input: {
     flex: 1,
@@ -339,6 +356,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 14,
     color: "#111827",
+    maxHeight: 100,
+    textAlignVertical: 'top',
   },
   sendButton: {
     width: 40,

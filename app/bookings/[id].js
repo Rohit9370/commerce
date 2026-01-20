@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { borderRadius, colors, shadows, spacing } from '../../src/constants/theme';
 import { db } from '../services/firebaseconfig';
 
 export default function BookingDetailScreen() {
@@ -59,13 +61,23 @@ export default function BookingDetailScreen() {
   const isCancelled = booking.status === 'cancelled';
   const isPending = booking.status === 'pending';
 
-  const getStatusColor = (status) => {
+  const getStatusGradient = (status) => {
     switch(status) {
-      case 'confirmed': return '#10B981';
-      case 'completed': return '#3B82F6';
-      case 'cancelled': return '#EF4444';
-      case 'pending': return '#F59E0B';
-      default: return '#6B7280';
+      case 'confirmed': return ['#10B981', '#059669'];
+      case 'completed': return ['#3B82F6', '#2563EB'];
+      case 'cancelled': return ['#EF4444', '#DC2626'];
+      case 'pending': return ['#F59E0B', '#D97706'];
+      default: return ['#6B7280', '#4B5563'];
+    }
+  };
+
+  const getStatusDescription = (status) => {
+    switch(status) {
+      case 'confirmed': return 'Your appointment is confirmed and ready';
+      case 'completed': return 'Service has been successfully completed';
+      case 'cancelled': return 'This booking has been cancelled';
+      case 'pending': return 'Waiting for provider confirmation';
+      default: return 'Status unknown';
     }
   };
 
@@ -81,161 +93,165 @@ export default function BookingDetailScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1F2937" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Booking Details</Text>
-        <View style={{ width: 24 }} /> {/* Spacer for alignment */}
-      </View>
+      {/* Modern Header */}
+      <LinearGradient
+        colors={colors.gradients.primary}
+        style={styles.modernHeader}
+      >
+        <View style={styles.headerContent}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={24} color={colors.white} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Booking Details</Text>
+          <View style={{ width: 40 }} />
+        </View>
+      </LinearGradient>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
         {/* Status Card */}
         <View style={styles.statusCard}>
-          <View style={[
-            styles.statusChip, 
-            isConfirmed ? styles.chipConfirmed : isCompleted ? styles.chipCompleted : isCancelled ? styles.chipCancelled : styles.chipPending
-          ]}>
-            <Ionicons 
-              name={getStatusIcon(booking.status)} 
-              size={16} 
-              color={getStatusColor(booking.status)} 
-            />
-            <Text style={[
-              styles.statusText, 
-              { color: getStatusColor(booking.status) }
-            ]}>
+          <LinearGradient
+            colors={getStatusGradient(booking.status)}
+            style={styles.statusGradient}
+          >
+            <View style={styles.statusIconContainer}>
+              <Ionicons 
+                name={getStatusIcon(booking.status)} 
+                size={32} 
+                color={colors.white} 
+              />
+            </View>
+            <Text style={styles.statusTitle}>
               {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
             </Text>
-          </View>
-          <Text style={styles.statusTextDesc}>
-            {booking.status === 'confirmed' && 'Your appointment is confirmed'}
-            {booking.status === 'completed' && 'Service has been completed'}
-            {booking.status === 'cancelled' && 'Booking has been cancelled'}
-            {booking.status === 'pending' && 'Waiting for confirmation'}
-          </Text>
+            <Text style={styles.statusDescription}>
+              {getStatusDescription(booking.status)}
+            </Text>
+          </LinearGradient>
         </View>
 
         {/* Service Info */}
-        <View style={styles.section}>
+        <View style={styles.modernSection}>
           <Text style={styles.sectionTitle}>Service Information</Text>
-          <View style={styles.infoRow}>
-            <Ionicons name="briefcase" size={20} color="#6B7280" />
-            <View style={{ marginLeft: 12 }}>
-              <Text style={styles.infoLabel}>Service Name</Text>
-              <Text style={styles.infoValue}>{booking.serviceName}</Text>
+          <View style={styles.infoGrid}>
+            <View style={styles.infoItem}>
+              <View style={styles.infoIconContainer}>
+                <Ionicons name="briefcase" size={20} color={colors.primary} />
+              </View>
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Service</Text>
+                <Text style={styles.infoValue}>{booking.serviceName}</Text>
+              </View>
             </View>
-          </View>
-          <View style={styles.infoRow}>
-            <Ionicons name="person" size={20} color="#6B7280" />
-            <View style={{ marginLeft: 12 }}>
-              <Text style={styles.infoLabel}>Provider</Text>
-              <Text style={styles.infoValue}>{booking.userName}</Text>
+            
+            <View style={styles.infoItem}>
+              <View style={styles.infoIconContainer}>
+                <Ionicons name="person" size={20} color={colors.primary} />
+              </View>
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Provider</Text>
+                <Text style={styles.infoValue}>{booking.userName}</Text>
+              </View>
             </View>
-          </View>
-          <View style={styles.infoRow}>
-            <Ionicons name="cash" size={20} color="#6B7280" />
-            <View style={{ marginLeft: 12 }}>
-              <Text style={styles.infoLabel}>Price</Text>
-              <Text style={styles.infoValue}>₹{booking.price}</Text>
-            </View>
+            
+            {booking.price && (
+              <View style={styles.infoItem}>
+                <View style={styles.infoIconContainer}>
+                  <Ionicons name="cash" size={20} color={colors.primary} />
+                </View>
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>Price</Text>
+                  <Text style={styles.infoValue}>₹{booking.price}</Text>
+                </View>
+              </View>
+            )}
           </View>
         </View>
 
         {/* Date & Time */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Date & Time</Text>
-          <View style={styles.infoRow}>
-            <Ionicons name="calendar" size={20} color="#6B7280" />
-            <View style={{ marginLeft: 12 }}>
-              <Text style={styles.infoLabel}>Date</Text>
-              <Text style={styles.infoValue}>{booking.bookingDate}</Text>
+        <View style={styles.modernSection}>
+          <Text style={styles.sectionTitle}>Schedule</Text>
+          <View style={styles.scheduleContainer}>
+            <View style={styles.scheduleItem}>
+              <LinearGradient
+                colors={['#EFF6FF', '#DBEAFE']}
+                style={styles.scheduleGradient}
+              >
+                <Ionicons name="calendar" size={24} color={colors.info} />
+                <Text style={styles.scheduleLabel}>Date</Text>
+                <Text style={styles.scheduleValue}>{booking.bookingDate}</Text>
+              </LinearGradient>
             </View>
-          </View>
-          <View style={styles.infoRow}>
-            <Ionicons name="time" size={20} color="#6B7280" />
-            <View style={{ marginLeft: 12 }}>
-              <Text style={styles.infoLabel}>Time</Text>
-              <Text style={styles.infoValue}>{booking.bookingTime}</Text>
+            
+            <View style={styles.scheduleItem}>
+              <LinearGradient
+                colors={['#F0FDF4', '#DCFCE7']}
+                style={styles.scheduleGradient}
+              >
+                <Ionicons name="time" size={24} color={colors.success} />
+                <Text style={styles.scheduleLabel}>Time</Text>
+                <Text style={styles.scheduleValue}>{booking.bookingTime}</Text>
+              </LinearGradient>
             </View>
           </View>
         </View>
 
         {/* Additional Info */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Additional Information</Text>
-          <View style={styles.infoRow}>
-            <Ionicons name="information-circle" size={20} color="#6B7280" />
-            <View style={{ marginLeft: 12 }}>
-              <Text style={styles.infoLabel}>Booking ID</Text>
-              <Text style={styles.infoValue}>{booking.id}</Text>
+        <View style={styles.modernSection}>
+          <Text style={styles.sectionTitle}>Booking Details</Text>
+          <View style={styles.detailsContainer}>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Booking ID</Text>
+              <Text style={styles.detailValue}>{booking.id}</Text>
             </View>
-          </View>
-          <View style={styles.infoRow}>
-            <Ionicons name="receipt" size={20} color="#6B7280" />
-            <View style={{ marginLeft: 12 }}>
-              <Text style={styles.infoLabel}>Created At</Text>
-              <Text style={styles.infoValue}>
-                {booking.createdAt ? new Date(booking.createdAt.seconds * 1000).toLocaleString() : 'N/A'}
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Created</Text>
+              <Text style={styles.detailValue}>
+                {booking.createdAt ? 
+                  (typeof booking.createdAt === 'string' ? 
+                    new Date(booking.createdAt).toLocaleDateString() : 
+                    new Date(booking.createdAt.seconds * 1000).toLocaleDateString()
+                  ) : 'N/A'}
               </Text>
             </View>
+            {booking.specialRequest && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Special Request</Text>
+                <Text style={styles.detailValue}>{booking.specialRequest}</Text>
+              </View>
+            )}
           </View>
         </View>
 
-        {/* Contact Provider */}
+        {/* Action Buttons */}
         {booking.status !== 'cancelled' && (
-          <TouchableOpacity style={styles.contactButton}>
-            <Ionicons name="call" size={20} color="white" />
-            <Text style={styles.contactButtonText}>Contact Provider</Text>
-          </TouchableOpacity>
+          <View style={styles.actionsContainer}>
+            <TouchableOpacity style={styles.contactButton}>
+              <LinearGradient
+                colors={colors.gradients.secondary}
+                style={styles.buttonGradient}
+              >
+                <Ionicons name="call" size={20} color={colors.white} />
+                <Text style={styles.buttonText}>Contact Provider</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+            
+            {booking.status === 'confirmed' && (
+              <TouchableOpacity style={styles.chatButton}>
+                <LinearGradient
+                  colors={colors.gradients.primary}
+                  style={styles.buttonGradient}
+                >
+                  <Ionicons name="chatbubble" size={20} color={colors.white} />
+                  <Text style={styles.buttonText}>Start Chat</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+          </View>
         )}
+        
+        <View style={{ height: 100 }} />
       </ScrollView>
-
-      {/* TAB BAR */}
-      <View style={styles.tabBar}>
-        <TouchableOpacity 
-          style={styles.tabItem} 
-          onPress={() => {
-            router.push('/(user)/home');
-          }}
-        >
-          <Ionicons 
-            name={'home-outline'} 
-            size={24} 
-            color={'#9CA3AF'} 
-          />
-          <Text style={styles.tabTextInactive}>Home</Text>
-        </TouchableOpacity>
-            
-        <TouchableOpacity 
-          style={styles.tabItem} 
-          onPress={() => {
-            router.push('/(user)/bookings');
-          }}
-        >
-          <Ionicons 
-            name={'calendar'} 
-            size={24} 
-            color={'#4F46E5'} 
-          />
-          <Text style={styles.tabText}>Bookings</Text>
-        </TouchableOpacity>
-            
-        <TouchableOpacity 
-          style={styles.tabItem} 
-          onPress={() => {
-            router.push('/(user)/profile');
-          }}
-        >
-          <Ionicons 
-            name={'person-outline'} 
-            size={24} 
-            color={'#9CA3AF'} 
-          />
-          <Text style={styles.tabTextInactive}>Profile</Text>
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 }
@@ -243,7 +259,7 @@ export default function BookingDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.background,
   },
   loadingContainer: {
     flex: 1,
@@ -253,161 +269,188 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#6B7280',
+    color: colors.text.secondary,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: spacing.xl,
   },
   errorText: {
     fontSize: 18,
-    color: '#EF4444',
-    marginTop: 16,
+    color: colors.error,
+    marginTop: spacing.lg,
     textAlign: 'center',
   },
-  backButton: {
-    backgroundColor: 'white',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  modernHeader: {
+    paddingTop: spacing.xl,
+    paddingBottom: spacing['2xl'],
+    paddingHorizontal: spacing.xl,
   },
-  backButtonText: {
-    color: '#4F46E5',
-    fontWeight: '600',
-  },
-  header: {
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#1F2937',
+    color: colors.white,
+  },
+  scrollView: {
+    flex: 1,
   },
   statusCard: {
-    backgroundColor: 'white',
-    margin: 20,
-    borderRadius: 16,
-    padding: 20,
+    margin: spacing.xl,
+    borderRadius: borderRadius.xl,
+    overflow: 'hidden',
+    ...shadows.lg,
+  },
+  statusGradient: {
+    padding: spacing['3xl'],
     alignItems: 'center',
   },
-  statusChip: {
-    flexDirection: 'row',
+  statusIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginBottom: 8,
+    marginBottom: spacing.lg,
   },
-  chipConfirmed: {
-    backgroundColor: '#ECFDF5',
+  statusTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.white,
+    marginBottom: spacing.md,
   },
-  chipCompleted: {
-    backgroundColor: '#DBEAFE',
-  },
-  chipCancelled: {
-    backgroundColor: '#FEF2F2',
-  },
-  chipPending: {
-    backgroundColor: '#FFFBEB',
-  },
-  statusText: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 6,
-  },
-  statusTextDesc: {
-    fontSize: 14,
-    color: '#6B7280',
+  statusDescription: {
+    fontSize: 16,
+    color: colors.white,
+    opacity: 0.9,
     textAlign: 'center',
   },
-  section: {
-    backgroundColor: 'white',
-    marginHorizontal: 20,
-    marginBottom: 16,
-    borderRadius: 16,
-    padding: 20,
+  modernSection: {
+    backgroundColor: colors.white,
+    marginHorizontal: spacing.xl,
+    marginBottom: spacing.lg,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    ...shadows.md,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 16,
+    color: colors.text.primary,
+    marginBottom: spacing.lg,
   },
-  infoRow: {
+  infoGrid: {
+    gap: spacing.lg,
+  },
+  infoItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+  },
+  infoIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.lg,
+  },
+  infoContent: {
+    flex: 1,
   },
   infoLabel: {
     fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 4,
+    color: colors.text.secondary,
+    marginBottom: 2,
   },
   infoValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: colors.text.primary,
   },
-  contactButton: {
-    backgroundColor: '#4F46E5',
+  scheduleContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    margin: 20,
-    padding: 16,
-    borderRadius: 16,
+    gap: spacing.lg,
   },
-  contactButtonText: {
-    color: 'white',
+  scheduleItem: {
+    flex: 1,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+  },
+  scheduleGradient: {
+    padding: spacing.lg,
+    alignItems: 'center',
+  },
+  scheduleLabel: {
+    fontSize: 12,
+    color: colors.text.secondary,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  scheduleValue: {
     fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
+    fontWeight: 'bold',
+    color: colors.text.primary,
   },
-  tabBar: {
+  detailsContainer: {
+    gap: spacing.lg,
+  },
+  detailRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    paddingVertical: 12,
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
-  tabItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  detailLabel: {
+    fontSize: 14,
+    color: colors.text.secondary,
     flex: 1,
   },
-  tabText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#4F46E5',
-    marginTop: 4,
-  },
-  tabTextInactive: {
-    fontSize: 12,
+  detailValue: {
+    fontSize: 14,
     fontWeight: '500',
-    color: '#9CA3AF',
-    marginTop: 4,
+    color: colors.text.primary,
+    flex: 2,
+    textAlign: 'right',
+  },
+  actionsContainer: {
+    marginHorizontal: spacing.xl,
+    gap: spacing.lg,
+  },
+  contactButton: {
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    ...shadows.md,
+  },
+  chatButton: {
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    ...shadows.md,
+  },
+  buttonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  buttonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

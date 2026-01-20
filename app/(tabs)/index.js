@@ -1,9 +1,8 @@
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AdminHomeScreen from "../(admin)/home";
-import SuperAdminHomeScreen from "../(super-admin)/home";
-import UserHomeScreen from "../(user)/home";
 import { useUserRole } from "../../hooks/useUserRole";
+import AdminHomeScreen from "./_admin-home";
+import SuperAdminHomeScreen from "./_super-admin-home";
 
 export default function HomeScreen() {
   const { userRole, userData, loading: roleLoading } = useUserRole();
@@ -27,8 +26,13 @@ export default function HomeScreen() {
     return <AdminHomeScreen userData={userData} />;
   }
 
-  // default: normal user
-  return <UserHomeScreen />;
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.loader}>
+        <Text style={styles.loadingText}>Redirecting...</Text>
+      </View>
+    </SafeAreaView>
+  );
 }
 
 const styles = StyleSheet.create({

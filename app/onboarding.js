@@ -10,14 +10,14 @@ import TypographyComponents from './Components/TypographyComponents';
 
 const { width, height } = Dimensions.get('window');
 
-// Responsive scaling function
+
 const scale = (size) => {
-  const guidelineBaseWidth = 375; // iPhone X width
+  const guidelineBaseWidth = 375; 
   return (width / guidelineBaseWidth) * size;
 };
 
 const scaleVertical = (size) => {
-  const guidelineBaseHeight = 812; // iPhone X height
+  const guidelineBaseHeight = 812; 
   return (height / guidelineBaseHeight) * size;
 };
 
@@ -29,7 +29,7 @@ const OnboardingScreen = ({ onboardingComplete }) => {
 
   const handleSkip = async () => {
     try {
-      // Save onboarding status to both AsyncStorage and Redux
+
       dispatch(setOnboardingStart());
       dispatch(setOnboardingComplete());
       await saveOnboardingStatus(true);
@@ -48,7 +48,7 @@ const OnboardingScreen = ({ onboardingComplete }) => {
       swiperRef.current.scrollBy(1);
     } else {
       try {
-        // Save onboarding status to both AsyncStorage and Redux
+   
         dispatch(setOnboardingStart());
         dispatch(setOnboardingComplete());
         await saveOnboardingStatus(true);
@@ -65,19 +65,21 @@ const OnboardingScreen = ({ onboardingComplete }) => {
 
   return (
     <View style={styles.mainContainer}>
-      <TouchableOpacity 
-        onPress={handleSkip}
-        style={styles.skipButton}
-      >
-        <TypographyComponents 
-          font="medium" 
-          size="sm" 
-          other="text-blue-600"
-          center={true}
+      <View style={styles.topBar}>
+        <TouchableOpacity 
+          onPress={handleSkip}
+          style={styles.skipButton}
         >
-          Skip
-        </TypographyComponents>
-      </TouchableOpacity>
+          <TypographyComponents 
+            font="medium" 
+            size="sm" 
+            other="text-blue-600"
+            center={true}
+          >
+            Skip
+          </TypographyComponents>
+        </TouchableOpacity>
+      </View>
 
       <Swiper
         ref={swiperRef}
@@ -107,7 +109,7 @@ const OnboardingScreen = ({ onboardingComplete }) => {
               size="md" 
               other="text-gray-600 text-center leading-6 mt-2.5"
             >
-              Setup your profile in minutes and showcase your services to thousands of customers.
+              Connect with customers and grow your business with our platform
             </TypographyComponents>
           </View>
         </View>
@@ -129,7 +131,7 @@ const OnboardingScreen = ({ onboardingComplete }) => {
               size="md" 
               other="text-gray-600 text-center leading-6 mt-2.5"
             >
-              Find the best local experts and products right in your neighborhood on a live map.
+              Find local services and shops near your location easily
             </TypographyComponents>
           </View>
         </View>
@@ -152,7 +154,7 @@ const OnboardingScreen = ({ onboardingComplete }) => {
               size="md" 
               other="text-gray-600 text-center leading-6 mt-2.5"
             >
-              Ready to start? Book your favorite services and chat directly with experts.
+              Book services and chat with providers in real-time
             </TypographyComponents>
           </View>
         </View>
@@ -166,10 +168,10 @@ const OnboardingScreen = ({ onboardingComplete }) => {
           <TypographyComponents 
             font="bold" 
             size="lg" 
-            other="text-white"
+            other="text-center"
             center={true}
           >
-            {index === 2 ? "Get Started" : "Next"}
+            {index === 2 ? 'Get Started' : 'Next'}
           </TypographyComponents>
         </TouchableOpacity>
       </View>
@@ -182,11 +184,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'white',
   },
-  skipButton: {
+  topBar: {
     position: 'absolute',
     top: scale(16),
+    left: scale(20),
     right: scale(20),
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     zIndex: 10,
+  },
+  languageSelector: {
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
+  skipButton: {
     paddingVertical: scale(8),
     paddingHorizontal: scale(12),
   },
@@ -208,6 +220,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonContainer: {
+    flexDirection:"row",
     justifyContent: 'center',
     alignContent: 'center',
     position: 'absolute',

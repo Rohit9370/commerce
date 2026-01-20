@@ -6,16 +6,16 @@ import { GoogleAuthProvider, signInWithCredential, signInWithEmailAndPassword } 
 import { doc, getDoc } from 'firebase/firestore';
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { useDispatch } from 'react-redux';
 import { setAuthFailure, setAuthStart, setAuthSuccess } from '../../store/slices/authSlice';
@@ -35,7 +35,7 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
 
 
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+  const [, , promptAsync] = Google.useIdTokenAuthRequest({
     clientId: '735847697694-40k79l2t666m7n4284q5n939t9527v4o.apps.googleusercontent.com',
   });
 
@@ -50,7 +50,7 @@ export default function LoginScreen() {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
 
-      // Read actual role from Firestore and validate against selectedRole tab
+    
       const snap = await getDoc(doc(db, 'users', userCredential.user.uid));
 
       let effectiveRole = 'user';
@@ -60,16 +60,14 @@ export default function LoginScreen() {
         effectiveRole = (data.role || 'user');
         userData = data;
       }
-      
-      // Prepare auth data
+   
       const authData = {
         uid: userCredential.user.uid,
         email: userCredential.user.email,
         role: effectiveRole,
         userData: userData
       };
-      
-      // Save to AsyncStorage and Redux
+     
       dispatch(setAuthStart());
       const saveSuccess = await saveAuthData(authData);
       if (saveSuccess) {
@@ -78,14 +76,11 @@ export default function LoginScreen() {
         dispatch(setAuthFailure('Failed to save auth data'));  
       }
 
-      // Map 'service provider' selection to our roles (admin/shopkeeper)
-      const isProviderRole = (r) => r === 'admin' || r === 'shopkeeper';
-      const sel = selectedRole; // 'user' | 'shopkeeper' | 'admin'
 
-      // Enforce match between selected and actual role per your rule:
-      // - If selected 'user' but actual is provider → error
-      // - If selected 'shopkeeper' but actual is user → error
-      // - If selected 'admin' but actual is not admin (super-admin allowed as admin) → error
+      const isProviderRole = (r) => r === 'admin' || r === 'shopkeeper';
+      const sel = selectedRole;
+
+
       if (sel === 'user' && isProviderRole(effectiveRole)) {
         setError('This account is registered as a Service Provider. Please switch to Service Provider or Admin tab.');
         setLoading(false);
@@ -102,8 +97,14 @@ export default function LoginScreen() {
         return;
       }
 
-      // Navigate into tabs; role-specific home is chosen inside Home tab
-      router.replace('/(tabs)/');
+     
+      if (effectiveRole === "admin" || effectiveRole === "shopkeeper") {
+        router.replace("/(tabs)/_admin-home");
+      } else if (effectiveRole === "super-admin") {
+        router.replace("/(tabs)/_super-admin-home");
+      } else {
+        router.replace("/(user)/home");
+      }
     } catch (err) {
       console.error('Login error:', err);
       let errorMessage = 'Invalid email or password';
@@ -129,7 +130,7 @@ export default function LoginScreen() {
         const credential = GoogleAuthProvider.credential(id_token);
         const userCredential = await signInWithCredential(auth, credential);
         
-        // Fetch user data from Firestore
+  
         const snap = await getDoc(doc(db, 'users', userCredential.user.uid));
         
         let effectiveRole = 'user';
@@ -139,8 +140,7 @@ export default function LoginScreen() {
           effectiveRole = (data.role || 'user');
           userData = data;
         }
-        
-        // Prepare auth data
+    
         const authData = {
           uid: userCredential.user.uid,
           email: userCredential.user.email,
@@ -148,7 +148,6 @@ export default function LoginScreen() {
           userData: userData
         };
         
-        // Save to AsyncStorage and Redux
         dispatch(setAuthStart());
         const saveSuccess = await saveAuthData(authData);
         if (saveSuccess) {
@@ -157,7 +156,13 @@ export default function LoginScreen() {
           dispatch(setAuthFailure('Failed to save auth data'));  
         }
         
-        router.replace('/(tabs)/');
+        if (effectiveRole === "admin" || effectiveRole === "shopkeeper") {
+          router.replace("/(tabs)/_admin-home");
+        } else if (effectiveRole === "super-admin") {
+          router.replace("/(tabs)/_super-admin-home");
+        } else {
+          router.replace("/(user)/home");
+        }
       }
     } catch (err) {
       setError('Google Sign-In failed');
@@ -173,10 +178,16 @@ export default function LoginScreen() {
     >
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         
-        {/* Top Branding Area */}
         <View style={styles.brandContainer}>
           <View style={styles.logoCircle}>
-            <Ionicons name="flash" size={40} color="#6366F1" />
+           <Image 
+              source={require('../../assets/images/logo.png')} 
+              style={{height:50,width:"100%"}}
+              resizeMode="contain"
+            />
+            <TypographyComponents size='xl' font='reg' >
+              Shosy
+            </TypographyComponents>
           </View>
           <TypographyComponents size="4xl" font="bold" other="text-gray-900 mt-6">
             Welcome Back
@@ -185,8 +196,6 @@ export default function LoginScreen() {
             Glad to see you again, login to continue!
           </TypographyComponents>
         </View>
-
-        {/* Modern Tab Switcher */}
         <View style={styles.tabContainer}>
           <TouchableOpacity 
             onPress={() => setSelectedRole('user')}
@@ -208,7 +217,6 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Input Fields */}
         <View style={styles.formContainer}>
           <View style={styles.inputBox}>
             <Ionicons name="mail-outline" size={20} color="#9CA3AF" style={styles.icon} />
@@ -254,6 +262,19 @@ export default function LoginScreen() {
             )}
           </TouchableOpacity>
 
+          {selectedRole === 'admin' && (
+            <TouchableOpacity 
+              style={styles.quickAdminButton} 
+              onPress={() => {
+                setEmail('admin@commerce.com');
+                setPassword('pass@123');
+              }}
+            >
+              <Ionicons name="flash" size={16} color="#10b981" />
+              <Text style={styles.quickAdminText}>Quick Admin Login</Text>
+            </TouchableOpacity>
+          )}
+
           <View style={styles.divider}>
             <View style={styles.line} />
             <Text style={styles.dividerText}>Or Login with</Text>
@@ -287,12 +308,17 @@ const styles = StyleSheet.create({
   scrollContainer: { flexGrow: 1, paddingHorizontal: 25, paddingBottom: 40 },
   brandContainer: { marginTop: 70, alignItems: 'center' },
   logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 25,
-    backgroundColor: '#EEF2FF',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    padding:10,
+    backgroundColor: '#6c7aa5ff',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  logoImage: {
+    width: 60,
+    height: 60,
   },
   tabContainer: {
     flexDirection: 'row',
@@ -330,6 +356,23 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   loginButtonText: { color: 'white', fontSize: 16, fontWeight: '700' },
+  quickAdminButton: {
+    flexDirection: 'row',
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    gap: 6,
+  },
+  quickAdminText: {
+    color: '#065f46',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 20 },
   line: { flex: 1, height: 1, backgroundColor: '#E5E7EB' },
   dividerText: { marginHorizontal: 10, color: '#9CA3AF', fontSize: 13 },

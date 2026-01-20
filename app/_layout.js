@@ -16,15 +16,15 @@ function RootInner() {
   const [initAttempted, setInitAttempted] = useState(false);
 
   useEffect(() => {
-    // Initialize only once, on mount
+
     if (!initAttempted) {
-      // Restore session - optimized to use cache immediately
+
       dispatch(restoreSession());
       setInitAttempted(true);
     }
   }, [dispatch]);
 
-  // Wait for app to be ready
+
   if (!ready) {
     return (
       <View style={{ 
@@ -46,6 +46,7 @@ function RootInner() {
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="auth" />
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="(user)" />
         <Stack.Screen name="bookings" />
         <Stack.Screen name="chat" />
         <Stack.Screen name="services" />

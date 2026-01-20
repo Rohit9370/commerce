@@ -3,13 +3,13 @@ import { useRouter } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
@@ -17,14 +17,14 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Button, Card, Typography } from '../../src/components/ui';
 import { colors, spacing } from '../../src/constants/theme';
 import {
-    fetchShopkeeperBookings,
-    selectBookingsLoading,
-    selectShopkeeperBookings,
-    updateBookingStatus
+  fetchShopkeeperBookings,
+  selectBookingsLoading,
+  selectShopkeeperBookings,
+  updateBookingStatus
 } from '../../store/slices/bookingsSlice';
 import {
-    fetchShopServices,
-    selectShopServices
+  fetchShopServices,
+  selectShopServices
 } from '../../store/slices/servicesSlice';
 import { db } from '../services/firebaseconfig';
 
@@ -41,7 +41,6 @@ const AdminHomeScreen = () => {
   const services = useSelector(selectShopServices);
   const bookingsLoading = useSelector(selectBookingsLoading);
 
-  // Redirect non-admin users
   useEffect(() => {
     if (role && role !== 'admin' && role !== 'shopkeeper') {
       if (role === 'user') {
@@ -60,13 +59,12 @@ const AdminHomeScreen = () => {
 
   const fetchData = async () => {
     try {
-      // Fetch shop data
+
       const userDoc = await getDoc(doc(db, 'users', uid));
       if (userDoc.exists()) {
         setShopData(userDoc.data());
       }
 
-      // Fetch bookings and services from Redux
       dispatch(fetchShopkeeperBookings(uid));
       dispatch(fetchShopServices(uid));
     } catch (error) {
@@ -91,7 +89,7 @@ const AdminHomeScreen = () => {
     }
   };
 
-  // Calculate stats
+
   const totalBookings = bookings.length;
   const pendingBookings = bookings.filter(b => b.status === 'pending');
   const acceptedBookings = bookings.filter(b => b.status === 'accepted');

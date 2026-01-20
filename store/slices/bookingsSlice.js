@@ -4,11 +4,13 @@ import {
     doc,
     getDocs,
     query,
+    serverTimestamp,
     setDoc,
     updateDoc,
-    where,
+    where
 } from "firebase/firestore";
 import { db } from "../../app/services/firebaseconfig";
+import { convertTimestamps } from "../../utils/firestoreConverter";
 
 // Fetch bookings for a shopkeeper
 export const fetchShopkeeperBookings = createAsyncThunk(
@@ -21,9 +23,10 @@ export const fetchShopkeeperBookings = createAsyncThunk(
 
       const bookings = [];
       snapshot.forEach((doc) => {
+        const data = doc.data();
         bookings.push({
           id: doc.id,
-          ...doc.data(),
+          ...convertTimestamps(data),
         });
       });
 
@@ -46,9 +49,10 @@ export const fetchUserBookings = createAsyncThunk(
 
       const bookings = [];
       snapshot.forEach((doc) => {
+        const data = doc.data();
         bookings.push({
           id: doc.id,
-          ...doc.data(),
+          ...convertTimestamps(data),
         });
       });
 
@@ -67,16 +71,23 @@ export const createBooking = createAsyncThunk(
     try {
       console.log('Creating booking with data:', bookingData);
       const bookingRef = doc(collection(db, "bookings"));
-      await setDoc(bookingRef, {
+      const dataToSave = {
         ...bookingData,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      
+      await setDoc(bookingRef, dataToSave);
       
       console.log('Booking created with ID:', bookingRef.id);
       
-      // Return the booking data with the new ID
-      return { id: bookingRef.id, ...bookingData };
+      // Return the booking data with the new ID and converted timestamps
+      return convertTimestamps({ 
+        id: bookingRef.id, 
+        ...bookingData,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
     } catch (error) {
       console.error("Error creating booking:", error);
       return rejectWithValue(error.message);
@@ -92,7 +103,7 @@ export const updateBookingStatus = createAsyncThunk(
       const bookingRef = doc(db, "bookings", bookingId);
       await updateDoc(bookingRef, {
         status,
-        updatedAt: new Date(),
+        updatedAt: serverTimestamp(),
       });
       return { bookingId, status };
     } catch (error) {

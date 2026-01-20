@@ -3,11 +3,11 @@ import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import { useRef } from "react";
 import {
-    Animated,
-    Platform,
-    StyleSheet,
-    TouchableOpacity,
-    View,
+  Animated,
+  Platform,
+  StyleSheet,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
@@ -25,8 +25,7 @@ function Icon({ name, focused, color }) {
 function CustomTabBar({ state, descriptors, navigation }) {
   const insets = useSafeAreaInsets();
   const { role } = useSelector((state) => state.auth);
-  
-  // rotation anim per route key
+
   const spinsRef = useRef(
     state.routes.reduce((acc, r) => {
       acc[r.key] = new Animated.Value(0);
@@ -41,7 +40,7 @@ function CustomTabBar({ state, descriptors, navigation }) {
       canPreventDefault: true,
     });
     if (!isFocused && !event.defaultPrevented) {
-      // spin animation on press
+   
       const v = spinsRef.current[route.key];
       v.setValue(0);
       Animated.timing(v, {
@@ -53,23 +52,21 @@ function CustomTabBar({ state, descriptors, navigation }) {
     }
   };
 
-  // Filter routes based on user role
+
   const getVisibleRoutes = () => {
     return state.routes.filter(route => {
       const { options } = descriptors[route.key];
       
-      // Hide screens with href: null
       if (options?.href === null) return false;
-      
-      // Role-based filtering
+ 
       if (role === 'user') {
-        // User sees: Home, Services, Bookings, Profile
+       
         return ['index', 'services', 'bookings', 'profile'].includes(route.name);
       } else if (role === 'admin' || role === 'shopkeeper') {
-        // Shopkeeper/Admin sees: Dashboard, Services, Booking Requests, Profile
+      
         return ['_admin-home', '_admin-services', 'bookings', 'profile'].includes(route.name);
       } else if (role === 'super-admin') {
-        // Super Admin sees: Admin Panel, Services, Bookings, Profile
+  
         return ['_super-admin-home', '_admin-services', 'bookings', 'profile'].includes(route.name);
       }
       

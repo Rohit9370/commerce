@@ -5,15 +5,15 @@ import { useRouter } from "expo-router";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    FlatList,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  FlatList,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -24,12 +24,13 @@ const { width, height } = Dimensions.get("window");
 
 export default function UserHomeScreen() {
   const router = useRouter();
-  const { userData, loading: roleLoading } = useUserRole();
+  const { userData, userRole, loading: roleLoading } = useUserRole();
   const [shops, setShops] = useState([]);
   const [filteredShops, setFilteredShops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [userLocation, setUserLocation] = useState(null);
+  const [locationLoading, setLocationLoading] = useState(false);
   const mapRef = useRef(null);
   const listRef = useRef(null);
 
@@ -41,17 +42,29 @@ export default function UserHomeScreen() {
   };
 
   const [hasFitted, setHasFitted] = useState(false);
-  const [radiusKm, setRadiusKm] = useState(5);
+  const [radiusKm, setRadiusKm] = useState(1000); // Start with "All" to show all shops
   const radiusOptions = [2, 5, 10, 20];
 
-  // Tab navigation state
-  const [activeTab, setActiveTab] = useState("home");
-
-  // Update active tab based on route
+  // Authentication guard
   useEffect(() => {
-    // Set active tab to 'home' since we're in the home component
-    setActiveTab("home");
-  }, []);
+    if (!roleLoading) {
+      if (!userData?.uid) {
+        console.log('UserHomeScreen - No user data, redirecting to login');
+        router.replace('/auth/login');
+        return;
+      }
+      
+      if (userRole && userRole !== 'user') {
+        console.log('UserHomeScreen - Wrong role:', userRole, 'redirecting');
+        if (userRole === 'admin' || userRole === 'shopkeeper') {
+          router.replace('/(tabs)/_admin-home');
+        } else if (userRole === 'super-admin') {
+          router.replace('/(tabs)/_super-admin-home');
+        }
+        return;
+      }
+    }
+  }, [roleLoading, userData, userRole, router]);
 
   const haversineKm = (lat1, lon1, lat2, lon2) => {
     const toRad = (v) => (v * Math.PI) / 180;
@@ -98,43 +111,170 @@ export default function UserHomeScreen() {
   };
 
   const requestLocation = async () => {
+    // Prevent multiple simultaneous location requests
+    if (locationLoading) {
+      console.log('Location request already in progress...');
+      return;
+    }
+
     try {
+      setLocationLoading(true);
+      console.log('Requesting location permission...');
+      
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") return;
-      const pos = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      setUserLocation({
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude,
-      });
+      
+      if (status !== "granted") {
+        console.log('Location permission denied');
+        Alert.alert(
+          'Location Permission Required',
+          'Please enable location access to see nearby services and distances.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Settings', onPress: () => Location.requestForegroundPermissionsAsync() }
+          ]
+        );
+        return;
+      }
+
+      console.log('Getting current position...');
+      
+      // First try with high accuracy
+      try {
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+          timeout: 10000,
+          maximumAge: 60000, // Accept cached location up to 1 minute old
+        });
+        
+        const newLocation = {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        };
+        
+        console.log('Location obtained:', newLocation);
+        setUserLocation(newLocation);
+        
+        // Animate map to user location
+        if (mapRef.current) {
+          mapRef.current.animateToRegion({
+            ...newLocation,
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
+          }, 1000);
+        }
+        
+      } catch (highAccuracyError) {
+        console.log('High accuracy failed, trying with lower accuracy...');
+        
+        // Fallback to lower accuracy
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Low,
+          timeout: 15000,
+          maximumAge: 300000, // Accept cached location up to 5 minutes old
+        });
+        
+        const newLocation = {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        };
+        
+        console.log('Location obtained with low accuracy:', newLocation);
+        setUserLocation(newLocation);
+        
+        if (mapRef.current) {
+          mapRef.current.animateToRegion({
+            ...newLocation,
+            latitudeDelta: 0.1,
+            longitudeDelta: 0.1,
+          }, 1000);
+        }
+      }
+      
     } catch (e) {
-      console.warn("Location error", e);
+      console.error("Location error:", e);
+      Alert.alert(
+        'Location Unavailable',
+        'Unable to get your location. Please:\n\n1. Enable Location Services in device settings\n2. Make sure GPS is turned on\n3. Try again in a few moments',
+        [
+          { text: 'Use Default Location', onPress: () => {
+            // Set default location to Delhi/Gadge Nagar area
+            const defaultLocation = {
+              latitude: 28.6139,
+              longitude: 77.209,
+            };
+            setUserLocation(defaultLocation);
+            if (mapRef.current) {
+              mapRef.current.animateToRegion({
+                ...defaultLocation,
+                latitudeDelta: 0.05,
+                longitudeDelta: 0.05,
+              }, 1000);
+            }
+          }},
+          { text: 'Try Again', onPress: requestLocation }
+        ]
+      );
+    } finally {
+      setLocationLoading(false);
     }
   };
 
   useEffect(() => {
-    requestLocation().finally(fetchShops);
-  }, []);
+    // Only initialize once when component mounts
+    const initializeApp = async () => {
+      if (!userLocation && !locationLoading) {
+        await requestLocation();
+      }
+      await fetchShops();
+    };
+    
+    initializeApp();
+  }, []); // Empty dependency array to run only once
 
   const applyFilters = useMemo(() => {
     const q = (searchQuery || "").toLowerCase();
-    return shops.filter((shop) => {
+    let filtered = shops.filter((shop) => {
       const matches =
         shop.shopName?.toLowerCase().includes(q) ||
         shop.category?.toLowerCase().includes(q);
-      if (!matches) return false;
-      if (userLocation && shop.location) {
-        const d = haversineKm(
-          userLocation.latitude,
-          userLocation.longitude,
-          shop.location.latitude,
-          shop.location.longitude,
-        );
-        return d <= radiusKm;
-      }
-      return true;
+      return matches;
     });
+
+    if (userLocation) {
+      filtered = filtered.map(shop => {
+        if (shop.location && 
+            typeof shop.location.latitude === 'number' && 
+            typeof shop.location.longitude === 'number' &&
+            isFinite(shop.location.latitude) && 
+            isFinite(shop.location.longitude)) {
+          try {
+            const distance = haversineKm(
+              userLocation.latitude,
+              userLocation.longitude,
+              shop.location.latitude,
+              shop.location.longitude,
+            );
+            return { ...shop, distance: isFinite(distance) ? distance : null };
+          } catch (error) {
+            console.warn('Distance calculation error:', error);
+            return { ...shop, distance: null };
+          }
+        }
+        return { ...shop, distance: null };
+      });
+      if (radiusKm !== 1000) {
+        filtered = filtered.filter(shop => 
+          shop.distance === null || shop.distance <= radiusKm
+        );
+      }
+      filtered.sort((a, b) => {
+        if (a.distance === null) return 1;
+        if (b.distance === null) return -1;
+        return a.distance - b.distance;
+      });
+    }
+
+    return filtered;
   }, [shops, searchQuery, userLocation, radiusKm]);
 
   useEffect(() => {
@@ -160,10 +300,21 @@ export default function UserHomeScreen() {
 
   const isOpenNow = (shop) => {
     const t = shop?.timing;
-    if (!t || !t.open || !t.close) return false;
+    if (!t) return false;
+    
+    // Check for 24 hours operation
+    if (t.isOpen24Hours || 
+        t.open === '24 Hours' || 
+        t.close === '24 Hours') {
+      return true;
+    }
+    
+    if (!t.open || !t.close) return false;
+    
     const now = new Date();
     const cur = now.getHours() * 60 + now.getMinutes();
     const parse = (s) => {
+      if (!s || s === '24 Hours') return 0;
       const m = s.match(/^(\d+):(\d+)\s*(AM|PM)$/i);
       if (!m) return 0;
       let h = parseInt(m[1]),
@@ -175,6 +326,10 @@ export default function UserHomeScreen() {
     };
     const open = parse(t.open),
       close = parse(t.close);
+    
+    // If both times are 0 (couldn't parse), assume closed
+    if (open === 0 && close === 0) return false;
+    
     return close >= open
       ? cur >= open && cur <= close
       : cur >= open || cur <= close;
@@ -201,9 +356,26 @@ export default function UserHomeScreen() {
         initialRegion={
           userLocation ? { ...DEFAULT_REGION, ...userLocation } : DEFAULT_REGION
         }
-        showsUserLocation
+        showsUserLocation={false}
         showsMyLocationButton={false}
       >
+        {/* Custom User Location Marker */}
+        {userLocation && (
+          <Marker
+            coordinate={userLocation}
+            anchor={{ x: 0.5, y: 0.5 }}
+            flat={true}
+          >
+            <View style={styles.userMarker}>
+              <View style={styles.userMarkerInner}>
+                <Ionicons name="person" size={16} color="white" />
+              </View>
+              <View style={styles.userMarkerPulse} />
+            </View>
+          </Marker>
+        )}
+
+        {/* Shop Markers */}
         {filteredShops.map(
           (shop) =>
             shop.location && (
@@ -240,7 +412,7 @@ export default function UserHomeScreen() {
         )}
       </MapView>
 
-      {/* FLOATING HEADER */}
+      {/* FLOATING HEADER - Moved down */}
       <View style={styles.floatingHeader}>
         <View style={styles.headerCard}>
           <View style={styles.headerTop}>
@@ -248,13 +420,15 @@ export default function UserHomeScreen() {
               <Text style={styles.welcomeText}>
                 Hi, {userData?.fullName?.split(" ")[0] || "User"}!
               </Text>
-              <Text style={styles.subText}>Services near you</Text>
+              <Text style={styles.subText}>
+                {userLocation ? 'Services near you' : 'Enable location for nearby services'}
+              </Text>
             </View>
-            <TouchableOpacity style={styles.iconBtn}>
+            <TouchableOpacity style={styles.iconBtn} onPress={requestLocation}>
               <Ionicons
-                name="notifications-outline"
+                name={userLocation ? "location" : "location-outline"}
                 size={22}
-                color="#1F2937"
+                color={userLocation ? "#10B981" : "#1F2937"}
               />
             </TouchableOpacity>
           </View>
@@ -273,6 +447,19 @@ export default function UserHomeScreen() {
             />
           </View>
           <View style={styles.chipRow}>
+            <TouchableOpacity
+              onPress={() => setRadiusKm(radiusKm === 1000 ? 5 : 1000)}
+              style={[styles.chip, radiusKm === 1000 && styles.chipActive]}
+            >
+              <Text
+                style={[
+                  styles.chipText,
+                  radiusKm === 1000 && styles.chipTextActive,
+                ]}
+              >
+                {radiusKm === 1000 ? "All" : "Nearby"}
+              </Text>
+            </TouchableOpacity>
             {radiusOptions.map((r) => (
               <TouchableOpacity
                 key={r}
@@ -357,9 +544,24 @@ export default function UserHomeScreen() {
                 <View style={styles.cardFooter}>
                   <Ionicons name="location" size={14} color="#4F46E5" />
                   <Text style={styles.distanceText}>
-                    {userLocation
-                      ? `${haversineKm(userLocation.latitude, userLocation.longitude, item.location.latitude, item.location.longitude).toFixed(1)} km away`
-                      : "--"}
+                    {(() => {
+                      if (!userLocation || !item.location) {
+                        return userLocation ? "Location not available" : "Enable location for distance";
+                      }
+                      
+                      const distance = item.distance !== undefined 
+                        ? item.distance 
+                        : haversineKm(
+                            userLocation.latitude,
+                            userLocation.longitude,
+                            item.location.latitude,
+                            item.location.longitude
+                          );
+                      
+                      return distance !== null && distance !== undefined 
+                        ? `${distance.toFixed(1)} km away`
+                        : "Distance unavailable";
+                    })()}
                   </Text>
                 </View>
               </View>
@@ -370,86 +572,24 @@ export default function UserHomeScreen() {
 
       {/* LOCATE ME FAB */}
       <TouchableOpacity
-        style={styles.fab}
-        onPress={() =>
-          userLocation &&
-          mapRef.current?.animateToRegion(
-            { ...DEFAULT_REGION, ...userLocation },
-            400,
-          )
-        }
+        style={[styles.fab, locationLoading && styles.fabLoading]}
+        onPress={requestLocation}
+        disabled={locationLoading}
       >
-        <Ionicons name="navigate" size={22} color="white" />
+        {locationLoading ? (
+          <ActivityIndicator size="small" color="white" />
+        ) : (
+          <Ionicons 
+            name={userLocation ? "navigate" : "location-outline"} 
+            size={22} 
+            color="white" 
+          />
+        )}
       </TouchableOpacity>
-
-      {/* TAB BAR */}
-      <View style={styles.tabBar}>
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => {
-            setActiveTab("home");
-            router.push("/(user)/home");
-          }}
-        >
-          <Ionicons
-            name={activeTab === "home" ? "home" : "home-outline"}
-            size={24}
-            color={activeTab === "home" ? "#4F46E5" : "#9CA3AF"}
-          />
-          <Text
-            style={
-              activeTab === "home" ? styles.tabText : styles.tabTextInactive
-            }
-          >
-            Home
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => {
-            setActiveTab("bookings");
-            router.push("/(tabs)/bookings");
-          }}
-        >
-          <Ionicons
-            name={activeTab === "bookings" ? "calendar" : "calendar-outline"}
-            size={24}
-            color={activeTab === "bookings" ? "#4F46E5" : "#9CA3AF"}
-          />
-          <Text
-            style={
-              activeTab === "bookings" ? styles.tabText : styles.tabTextInactive
-            }
-          >
-            Bookings
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => {
-            setActiveTab("profile");
-            router.push("/(tabs)/profile");
-          }}
-        >
-          <Ionicons
-            name={activeTab === "profile" ? "person" : "person-outline"}
-            size={24}
-            color={activeTab === "profile" ? "#4F46E5" : "#9CA3AF"}
-          />
-          <Text
-            style={
-              activeTab === "profile" ? styles.tabText : styles.tabTextInactive
-            }
-          >
-            Profile
-          </Text>
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   map: { ...StyleSheet.absoluteFillObject },
@@ -462,10 +602,9 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
 
-  // Floating Header
   floatingHeader: {
     position: "absolute",
-    top: 0,
+    top: 60, // Moved down more
     left: 0,
     right: 0,
     zIndex: 30,
@@ -509,8 +648,6 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: "#111827", borderColor: "#111827" },
   chipText: { fontSize: 12, fontWeight: "700", color: "#6B7280" },
   chipTextActive: { color: "#fff" },
-
-  // Markers
   customMarker: { alignItems: "center" },
   markerLabel: {
     flexDirection: "row",
@@ -541,13 +678,45 @@ const styles = StyleSheet.create({
     marginTop: -1,
   },
 
+  userMarker: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 50,
+    height: 50,
+  },
+  userMarkerInner: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#4F46E5",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 3,
+    borderColor: "white",
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    zIndex: 2,
+  },
+  userMarkerPulse: {
+    position: "absolute",
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#4F46E5",
+    opacity: 0.2,
+    zIndex: 1,
+  },
+
   // Bottom List
   bottomListContainer: {
     position: "absolute",
-    bottom: 120,
+    bottom: 100, // Increased to avoid tab bar overlap
     left: 0,
     right: 0,
-    maxHeight: height * 0.4,
+    maxHeight: height * 0.25, // Smaller height
   },
   shopCard: {
     width: width * 0.8,
@@ -588,7 +757,7 @@ const styles = StyleSheet.create({
   // FAB
   fab: {
     position: "absolute",
-    bottom: 140,
+    bottom: 220, // Adjusted for tab bar space
     right: 20,
     backgroundColor: "#4F46E5",
     width: 48,
@@ -597,38 +766,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
-
-  // Tab Bar
-  tabBar: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    backgroundColor: "white",
-    borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
-    paddingVertical: 12,
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    zIndex: 20,
-  },
-  tabItem: {
-    alignItems: "center",
-    justifyContent: "center",
-    flex: 1,
-  },
-  tabText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#4F46E5",
-    marginTop: 4,
-  },
-  tabTextInactive: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: "#9CA3AF",
-    marginTop: 4,
+  fabLoading: {
+    backgroundColor: "#9CA3AF",
   },
 });

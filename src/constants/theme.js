@@ -1,13 +1,18 @@
 export const colors = {
-  // Primary colors
-  primary: '#6366F1',
-  primaryLight: '#818CF8',
-  primaryDark: '#4F46E5',
+  // Primary colors - Modern blue gradient
+  primary: '#4F46E5',
+  primaryLight: '#7C3AED',
+  primaryDark: '#3730A3',
   
-  // Secondary colors
-  secondary: '#10B981',
-  secondaryLight: '#34D399',
-  secondaryDark: '#059669',
+  // Secondary colors - Vibrant teal
+  secondary: '#06B6D4',
+  secondaryLight: '#22D3EE',
+  secondaryDark: '#0891B2',
+  
+  // Accent colors
+  accent: '#F59E0B',
+  accentLight: '#FCD34D',
+  accentDark: '#D97706',
   
   // Status colors
   success: '#10B981',
@@ -19,37 +24,39 @@ export const colors = {
   white: '#FFFFFF',
   black: '#000000',
   
-  // Gray scale
+  // Gray scale - Warmer grays
   gray: {
-    50: '#F9FAFB',
-    100: '#F3F4F6',
-    200: '#E5E7EB',
-    300: '#D1D5DB',
-    400: '#9CA3AF',
-    500: '#6B7280',
-    600: '#4B5563',
-    700: '#374151',
-    800: '#1F2937',
-    900: '#111827',
+    50: '#FAFAF9',
+    100: '#F5F5F4',
+    200: '#E7E5E4',
+    300: '#D6D3D1',
+    400: '#A8A29E',
+    500: '#78716C',
+    600: '#57534E',
+    700: '#44403C',
+    800: '#292524',
+    900: '#1C1917',
   },
   
   // Background colors
-  background: '#F9FAFB',
+  background: '#FAFAF9',
   surface: '#FFFFFF',
+  surfaceElevated: '#FFFFFF',
   
   // Text colors
   text: {
-    primary: '#111827',
-    secondary: '#6B7280',
-    tertiary: '#9CA3AF',
+    primary: '#1C1917',
+    secondary: '#57534E',
+    tertiary: '#78716C',
     inverse: '#FFFFFF',
+    muted: '#A8A29E',
   },
   
   // Border colors
   border: {
-    light: '#E5E7EB',
-    medium: '#D1D5DB',
-    dark: '#9CA3AF',
+    light: '#E7E5E4',
+    medium: '#D6D3D1',
+    dark: '#A8A29E',
   },
   
   // Status backgrounds
@@ -59,79 +66,119 @@ export const colors = {
     error: '#FEF2F2',
     info: '#EFF6FF',
   },
+  
+  // Gradient colors
+  gradients: {
+    primary: ['#4F46E5', '#7C3AED'],
+    secondary: ['#06B6D4', '#22D3EE'],
+    warm: ['#F59E0B', '#EF4444'],
+    cool: ['#3B82F6', '#06B6D4'],
+  },
 };
 
 export const typography = {
   fontFamily: {
-    light: 'Ro-light',
-    regular: 'Ro-reg',
-    medium: 'Ro-medium',
-    semiBold: 'Ro-semi-bold',
-    bold: 'Ro-bold',
+    light: 'System',
+    regular: 'System',
+    medium: 'System',
+    semiBold: 'System',
+    bold: 'System',
   },
   
   fontSize: {
-    xs: 12,
-    sm: 14,
-    base: 16,
-    lg: 18,
-    xl: 20,
-    '2xl': 24,
-    '3xl': 30,
-    '4xl': 36,
+    xs: 11,
+    sm: 13,
+    base: 15,
+    lg: 17,
+    xl: 19,
+    '2xl': 22,
+    '3xl': 28,
+    '4xl': 34,
+    '5xl': 42,
   },
   
   lineHeight: {
-    xs: 16,
-    sm: 20,
-    base: 24,
-    lg: 28,
-    xl: 32,
-    '2xl': 36,
-    '3xl': 42,
-    '4xl': 48,
+    xs: 14,
+    sm: 18,
+    base: 22,
+    lg: 24,
+    xl: 28,
+    '2xl': 32,
+    '3xl': 36,
+    '4xl': 42,
+    '5xl': 48,
+  },
+  
+  fontWeight: {
+    light: '300',
+    regular: '400',
+    medium: '500',
+    semiBold: '600',
+    bold: '700',
+    extraBold: '800',
   },
 };
 
 export const spacing = {
-  xs: 4,
-  sm: 8,
-  md: 16,
-  lg: 24,
-  xl: 32,
-  '2xl': 48,
-  '3xl': 64,
+  xs: 2,
+  sm: 4,
+  md: 8,
+  lg: 12,
+  xl: 16,
+  '2xl': 20,
+  '3xl': 24,
+  '4xl': 32,
+  '5xl': 40,
+  '6xl': 48,
+  '7xl': 64,
 };
 
 export const borderRadius = {
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 24,
+  xs: 4,
+  sm: 6,
+  md: 8,
+  lg: 12,
+  xl: 16,
+  '2xl': 20,
+  '3xl': 24,
   full: 9999,
 };
 
 export const shadows = {
+  xs: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 1,
+    elevation: 1,
+  },
   sm: {
-    shadowColor: colors.black,
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,
   },
   md: {
-    shadowColor: colors.black,
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
     elevation: 4,
   },
   lg: {
-    shadowColor: colors.black,
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.12,
     shadowRadius: 12,
     elevation: 6,
+  },
+  xl: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
   },
 };
 
